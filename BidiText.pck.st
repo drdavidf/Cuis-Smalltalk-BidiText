@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 10 April 2023 at 5:17:58 pm'!
+'From Cuis 6.0 [latest update: #5722] on 10 April 2023 at 5:41:51 pm'!
 'Description '!
-!provides: 'BidiText' 1 30!
+!provides: 'BidiText' 1 31!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -168,7 +168,7 @@ handlesMouseDown: aMouseButtonEvent
 handlesMouseOver: aMorphicEvent
 	^self visible ! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/10/2023 17:17:16'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/10/2023 17:35:05'!
 keyStroke: aKeyboardEvent
 
 	| dir char |
@@ -206,7 +206,7 @@ keyStroke: aKeyboardEvent
 		 ^self ].
 	
 	aKeyboardEvent isBackspace ifTrue:[ 
-		editor backspace.
+		self backspace.
 		paragraph rebuild: text.
 		self redrawNeeded. ^self ].
 
@@ -431,6 +431,21 @@ backToContra: anIndex
 	
 	^i! !
 
+!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/10/2023 17:39:21'!
+backspace
+
+	| p |
+	
+	p := self advanceOverNeutrals: editor point.
+	
+	p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: paragraph writingDirection ] :: 
+		ifTrue:[editor delete. ^self].
+
+	p <= text size and: [ text at:p :: writingDirection = #tltr and: [ paragraph writingDirection = -1 ] ] :: 
+		ifTrue:[editor delete. ^self].
+		
+	editor backspace.! !
+
 !BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/9/2023 13:54:44'!
 compatible: writingDirectionSymbol with: writingDirectionInteger
 
@@ -487,7 +502,7 @@ selection
 text: aText
 	text := aText! !
 
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/7/2023 18:51:13'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 4/7/2023 18:51:13'!
 backspace
 
 	mark = point ifTrue:[self moveMarkTo: point - 1].
@@ -496,12 +511,7 @@ backspace
 	self moveMarkTo: point.
 ! !
 
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/9/2023 18:16:12'!
-decrementPointMark
-
-	self movePointTo: point - 1;  moveMarkTo: point 		! !
-
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/9/2023 18:21:35'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 4/9/2023 18:21:35'!
 delete
 
 	mark = point ifTrue:[self movePointTo: point + 1].
@@ -511,7 +521,7 @@ delete
 	self moveMarkTo: point.
 ! !
 
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/7/2023 18:52:44'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 4/7/2023 18:52:44'!
 insert: aCodePoint
 
 	self replaceSelectionWith: aCodePoint asString.
@@ -519,16 +529,7 @@ insert: aCodePoint
 	self moveMarkTo: point.
 ! !
 
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/7/2023 20:14:17'!
-moveMarkTo: anInteger
-	mark := anInteger min: text size + 1  :: max: 1! !
-
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/7/2023 20:14:13'!
-movePointTo: anInteger
-	
-	point := anInteger min: text size + 1 :: max: 1! !
-
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/8/2023 15:23:10'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 4/8/2023 15:23:10'!
 paste
 
 	"Paste the text from the shared buffer over the current selection and 
@@ -536,7 +537,7 @@ paste
 
 	self replaceSelectionWith: Clipboard retrieveStringOrText ! !
 
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/7/2023 15:03:22'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 4/7/2023 15:03:22'!
 replaceSelectionWith: aText
 
 	| b e |
@@ -546,6 +547,20 @@ replaceSelectionWith: aText
 	
 	text replaceFrom: b to: e - 1 with: aText
 	! !
+
+!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/9/2023 18:16:12'!
+decrementPointMark
+
+	self movePointTo: point - 1;  moveMarkTo: point 		! !
+
+!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/7/2023 20:14:17'!
+moveMarkTo: anInteger
+	mark := anInteger min: text size + 1  :: max: 1! !
+
+!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/7/2023 20:14:13'!
+movePointTo: anInteger
+	
+	point := anInteger min: text size + 1 :: max: 1! !
 
 !BidiLine methodsFor: 'accessing' stamp: 'DF 4/7/2023 12:30:08'!
 ascent
