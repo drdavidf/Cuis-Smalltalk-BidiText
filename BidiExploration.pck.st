@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 10 April 2023 at 1:28:40 pm'!
+'From Cuis 6.0 [latest update: #5722] on 10 April 2023 at 9:24:16 pm'!
 'Description '!
-!provides: 'BidiExploration' 1 0!
+!provides: 'BidiExploration' 1 1!
 SystemOrganization addCategory: 'BidiExploration'!
 
 
@@ -72,6 +72,16 @@ TextComposition subclass: #BidiTextComposition
 	category: 'BidiExploration'!
 !classDefinition: 'BidiTextComposition class' category: 'BidiExploration'!
 BidiTextComposition class
+	instanceVariableNames: ''!
+
+!classDefinition: #ArabicComposer category: 'BidiExploration'!
+Object subclass: #ArabicComposer
+	instanceVariableNames: ''
+	classVariableNames: 'Beginning End Isolated Middle'
+	poolDictionaries: ''
+	category: 'BidiExploration'!
+!classDefinition: 'ArabicComposer class' category: 'BidiExploration'!
+ArabicComposer class
 	instanceVariableNames: ''!
 
 !classDefinition: #BidiPreprocessor category: 'BidiExploration'!
@@ -522,6 +532,65 @@ displaySelectionStartBlock: startBlock stopBlock: stopBlock InLine: line on: aCa
 				fillRectangle: (leftX @ (line top +  textTopLeft y) corner: rightX @ (line bottom +  textTopLeft y))
 				color: sc].	"Selection begins on line below"! !
 
+!ArabicComposer methodsFor: 'as yet unclassified' stamp: 'DF 4/10/2023 21:20:30'!
+compose: aUnicodeString
+
+	| output b e |
+	
+	b := 1570.
+	e := 1610.
+	
+	output := OrderedCollection new.
+	
+	1 to: 	aUnicodeString size do:[:i |
+		
+		b <= (aUnicodeString at:i) codePoint and:[(aUnicodeString at:i) codePoint <= e] :: 
+			ifTrue:[
+				"beginning of word"
+				(i = 1 or: [aUnicodeString at:i -1 :: isSeparator ]) and: [i < aUnicodeString size] and: [ aUnicodeString at: i+1 :: isSeparator not ] :: ifTrue:[ | c | 
+					c := Beginning at: (aUnicodeString at:i) codePoint - 1569.
+					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
+				
+				"middle of word"
+				i > 1 and: [i < aUnicodeString size] and: [aUnicodeString at:i-1 :: isSeparator not ] and: [aUnicodeString at:i+1 :: isSeparator not] :: ifTrue:[ | c |
+					
+					c := Middle at: (aUnicodeString at:i) codePoint - 1569.
+					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
+				
+				"end of word" 
+				i> 1 and:[ aUnicodeString at:i-1 :: isSeparator not] and: [i = aUnicodeString size or: [aUnicodeString at: i + 1 :: isSeparator] ] :: ifTrue:[
+					| c |
+					
+					c := End at: (aUnicodeString at:i) codePoint - 1569.
+					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)]
+					].
+				
+				"isolated"
+				
+				(i = 1 or: [aUnicodeString at: i - 1 :: isSeparator ]) and: [i = aUnicodeString size or: [aUnicodeString at: i+1 :: isSeparator ] ] :: ifTrue:[
+					| c |
+					
+					c := Isolated at: (aUnicodeString at:i) codePoint - 1569.
+					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)]
+					].
+			] 
+			ifFalse:[output add: (aUnicodeString at:i) ] ].
+	
+	^UnicodeString newFrom: output! !
+
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/10/2023 20:26:16'!
+initialize
+
+	"self initialize"
+	
+	Isolated := #( -12 nil nil nil nil 0 2 6 8 12 16 20 24 28 30 32 34 36 40 44 48 52 56 60 64 nil nil nil nil nil nil 68 72 76 80 84 88 92 96 98 100).
+	
+	End := #(-11 nil nil nil nil 1 3 7 9 13 17 21 25 29 31 33 35 37 41 45 49 53 57 61 65 nil nil nil nil nil nil 69 73 77 81 85 89 93 97 99 101).
+	
+	Beginning := #(nil nil nil nil nil nil 4 nil 10 14 18 22 26 nil nil nil nil 38 42 46 50 54 58 62 66 nil nil nil nil nil nil 70 74 78 82 86 90 94 nil nil 102).
+	
+	Middle := #(nil nil nil nil nil nil 5 nil 11 15 19 23 27 nil nil nil nil 39 43 47 51 55 59 63 67 nil nil nil nil nil nil 71 75 79 83 87 91 95 nil nil 103).! !
+
 !BidiPreprocessor methodsFor: 'inserting bidi markers' stamp: 'DF 4/2/2023 09:31:38'!
 fillIndicesBuffer
 
@@ -834,4 +903,5 @@ drawBidiString: aString from: firstIndex to: lastIndex atBaseline: aPoint font: 
 		at: p1
 		font: font
 		color: aColor! !
+ArabicComposer initialize!
 BidiPreprocessor initialize!
