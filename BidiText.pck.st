@@ -1,12 +1,12 @@
-'From Cuis 6.0 [latest update: #5722] on 10 April 2023 at 5:41:51 pm'!
+'From Cuis 6.0 [latest update: #5722] on 11 April 2023 at 3:27:58 pm'!
 'Description '!
-!provides: 'BidiText' 1 31!
+!provides: 'BidiText' 1 38!
 SystemOrganization addCategory: 'BidiText'!
 
 
 !classDefinition: #BidiTextMorph category: 'BidiText'!
 BoxedMorph subclass: #BidiTextMorph
-	instanceVariableNames: 'text editor paragraph state'
+	instanceVariableNames: 'text editor paragraph'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -14,9 +14,19 @@ BoxedMorph subclass: #BidiTextMorph
 BidiTextMorph class
 	instanceVariableNames: ''!
 
+!classDefinition: #ArabicComposer category: 'BidiText'!
+Object subclass: #ArabicComposer
+	instanceVariableNames: ''
+	classVariableNames: 'Beginning End Isolated Middle'
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'ArabicComposer class' category: 'BidiText'!
+ArabicComposer class
+	instanceVariableNames: ''!
+
 !classDefinition: #BidiEditor category: 'BidiText'!
 Object subclass: #BidiEditor
-	instanceVariableNames: 'text point mark'
+	instanceVariableNames: 'text point mark history'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -71,13 +81,13 @@ cut
 	
 	self redrawNeeded.! !
 
-!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/8/2023 16:37:58'!
+!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/11/2023 14:55:38'!
 paste
 
 	"Paste the text from the shared buffer over the current selection and 
 	redisplay if necessary."
 
-	editor replaceSelectionWith: Clipboard retrieveStringOrText.
+	editor paste: Clipboard retrieveStringOrText.
 	
 	paragraph rebuild: text.
 	
@@ -92,10 +102,10 @@ pasteRecent
 	self clipboardTextPut: clipping.
 	^ self paste! !
 
-!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/8/2023 16:38:03'!
+!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/11/2023 14:55:30'!
 pasteString
 
-	editor replaceSelectionWith: Clipboard retrieveStringOrText asPlainString.
+	editor paste: Clipboard retrieveStringOrText asPlainString.
 	
 	paragraph rebuild: text.
 	
@@ -133,7 +143,29 @@ addCutAndPasteMenuSectionTo: aMenu
 	
 	^aMenu! !
 
-!BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/8/2023 15:58:39'!
+!BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/11/2023 15:04:04'!
+addUndoMenuSectionTo: aMenu
+
+	"Adds undo operations to the given menu"
+
+	aMenu
+		add: 'Undo - multiple (z)'
+		action: #undo
+		icon:	#undoIcon.
+		
+	aMenu
+		add: 'Redo - multiple (Z)'
+		action: #redo
+		icon: #redoIcon.
+		
+	aMenu
+		add: 'Undo / Redo history'
+		action: #offerUndoHistory
+		icon: #changesIcon.
+		
+	^aMenu.! !
+
+!BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/11/2023 15:04:38'!
 getMenu
 	| aMenu | 
 	
@@ -148,12 +180,35 @@ getMenu
 		icon: #helpIcon.
 	aMenu addLine.
 	
+	self addUndoMenuSectionTo: aMenu.
+	aMenu addLine.
+
 	self addCutAndPasteMenuSectionTo: aMenu.
 	aMenu addLine.
 	
 	^aMenu
 
 ! !
+
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/11/2023 12:36:05'!
+doubleClick: aMouseButtonEvent localPosition: localEventPosition
+	
+	"first move the mark back until a separator or beginning of text"
+	
+	[ editor mark = (text size + 1) or: [editor mark > 1 and: [ text at:editor mark :: isSeparator not ] ] ]
+		whileTrue:[editor moveMarkTo: editor mark - 1 ].
+		
+	"self assert: editor mark <= text size and: [ editor mark = 1 or: [ text at:editor mark :: isSeparator ] ] "
+	
+	editor mark > 1 ifTrue:[editor moveMarkTo: editor mark + 1].
+		
+	"then move the point forward until a separator or end of text"
+	
+	[ editor point = 1 or: [ editor point < (text size + 1) and:[ text at:editor point :: isSeparator not ] ] ]
+		whileTrue:[editor movePointTo: editor point + 1].
+		
+	self redrawNeeded.
+		! !
 
 !BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 20:46:01'!
 handlesKeyboard
@@ -168,7 +223,7 @@ handlesMouseDown: aMouseButtonEvent
 handlesMouseOver: aMorphicEvent
 	^self visible ! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/10/2023 17:35:05'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/11/2023 15:23:48'!
 keyStroke: aKeyboardEvent
 
 	| dir char |
@@ -222,6 +277,18 @@ keyStroke: aKeyboardEvent
 	
 	char := aKeyboardEvent keyCharacter.
 	
+	aKeyboardEvent controlKeyPressed and:[char = $c] :: ifTrue:[
+		self copySelection.
+		self redrawNeeded. ^self ].
+
+	aKeyboardEvent controlKeyPressed and:[char = $v] :: ifTrue:[^self paste].
+
+	aKeyboardEvent controlKeyPressed and:[char = $x] :: ifTrue:[	^	self cut].
+
+	aKeyboardEvent controlKeyPressed and:[char = $z] :: ifTrue:[^self undo].
+
+	aKeyboardEvent controlKeyPressed and:[char = $Z] :: ifTrue:[^self redo].
+
 	self addCodePoint: char.
 			
 	paragraph rebuild: text.
@@ -233,7 +300,7 @@ keyboardFocusChange: aBoolean
 
 	"self halt."! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/7/2023 14:37:09'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/11/2023 12:18:03'!
 mouseButton1Down: aMouseButtonEvent localPosition: localEventPosition
 
 	| i |
@@ -242,6 +309,16 @@ mouseButton1Down: aMouseButtonEvent localPosition: localEventPosition
 	
 	editor movePointTo: i; moveMarkTo: i.
 	
+	aMouseButtonEvent hand 
+		waitForClicksOrDragOrSimulatedMouseButton2: self
+		event: aMouseButtonEvent
+		clkSel: #click:localPosition:
+		clkNHalf: nil
+		dblClkSel: #doubleClick:localPosition:
+		dblClkNHalfSel: nil
+		tripleClkSel: nil
+		dragSel: nil.
+		
 	self redrawNeeded.! !
 
 !BidiTextMorph methodsFor: 'events' stamp: 'DF 4/8/2023 15:30:38'!
@@ -303,7 +380,7 @@ extentChanged: oldExtent
 	
 	paragraph width: self morphWidth ; rebuild: text ! !
 
-!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 4/8/2023 17:34:38'!
+!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 4/11/2023 12:40:35'!
 initialize
 
 	super initialize.
@@ -320,16 +397,16 @@ initialize
 	
 	paragraph rebuild: text.
 	
-	state := #normal! !
+	! !
 
-!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 4/7/2023 14:37:56'!
+!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 4/10/2023 17:45:41'!
 text: aText
 
-	text := aText.
+	text := aText asUnicodeStringOrText.
 	
-	editor text: aText.
+	editor text: text.
 	
-	paragraph rebuild: aText.! !
+	paragraph rebuild: text.! !
 
 !BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/10/2023 16:48:46'!
 addCodePoint: aCodePoint
@@ -474,10 +551,91 @@ retypeNeutralsAt: anIndex
 	text replaceFrom: p to: p-1 with: neutrals reverse.
 	editor movePointTo: p + neutrals size; moveMarkTo: editor point.! !
 
-!BidiEditor methodsFor: 'initialization' stamp: 'DF 4/7/2023 14:48:26'!
+!BidiTextMorph methodsFor: 'history' stamp: 'DF 4/11/2023 15:05:50'!
+offerUndoHistory! !
+
+!BidiTextMorph methodsFor: 'history' stamp: 'DF 4/11/2023 15:18:12'!
+redo
+
+	editor redo.
+	
+	paragraph rebuild: text.
+	
+	self redrawNeeded.! !
+
+!BidiTextMorph methodsFor: 'history' stamp: 'DF 4/11/2023 15:07:21'!
+undo
+
+	editor undo.
+	
+	paragraph rebuild: text.
+	
+	self redrawNeeded.! !
+
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/11/2023 11:54:01'!
+compose: aUnicodeString
+
+	| output b e |
+	
+	b := 1570.
+	e := 1610.
+	
+	output := OrderedCollection new.
+	
+	1 to: 	aUnicodeString size do:[:i |
+		
+		b <= (aUnicodeString at:i) codePoint and:[(aUnicodeString at:i) codePoint <= e] :: 
+			ifTrue:[
+				"beginning of word"
+				(i = 1 or: [aUnicodeString at:i -1 :: isSeparator ]) and: [i < aUnicodeString size] and: [ aUnicodeString at: i+1 :: isSeparator not ] :: ifTrue:[ | c | 
+					c := Beginning at: (aUnicodeString at:i) codePoint - 1569.
+					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
+				
+				"middle of word"
+				i > 1 and: [i < aUnicodeString size] and: [aUnicodeString at:i-1 :: isSeparator not ] and: [aUnicodeString at:i+1 :: isSeparator not] :: ifTrue:[ | c |
+					
+					c := Middle at: (aUnicodeString at:i) codePoint - 1569.
+					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
+				
+				"end of word" 
+				i> 1 and:[ aUnicodeString at:i-1 :: isSeparator not] and: [i = aUnicodeString size or: [aUnicodeString at: i + 1 :: isSeparator] ] :: ifTrue:[
+					| c |
+					
+					c := End at: (aUnicodeString at:i) codePoint - 1569.
+					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)]
+					].
+				
+				"isolated"
+				
+				(i = 1 or: [aUnicodeString at: i - 1 :: isSeparator ]) and: [i = aUnicodeString size or: [aUnicodeString at: i+1 :: isSeparator ] ] :: ifTrue:[
+					| c |
+					
+					c := Isolated at: (aUnicodeString at:i) codePoint - 1569.
+					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)]
+					].
+			] 
+			ifFalse:[output add: (aUnicodeString at:i) ] ].
+	
+	^UnicodeString newFrom: output! !
+
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/10/2023 20:26:16'!
+initialize
+
+	"self initialize"
+	
+	Isolated := #( -12 nil nil nil nil 0 2 6 8 12 16 20 24 28 30 32 34 36 40 44 48 52 56 60 64 nil nil nil nil nil nil 68 72 76 80 84 88 92 96 98 100).
+	
+	End := #(-11 nil nil nil nil 1 3 7 9 13 17 21 25 29 31 33 35 37 41 45 49 53 57 61 65 nil nil nil nil nil nil 69 73 77 81 85 89 93 97 99 101).
+	
+	Beginning := #(nil nil nil nil nil nil 4 nil 10 14 18 22 26 nil nil nil nil 38 42 46 50 54 58 62 66 nil nil nil nil nil nil 70 74 78 82 86 90 94 nil nil 102).
+	
+	Middle := #(nil nil nil nil nil nil 5 nil 11 15 19 23 27 nil nil nil nil 39 43 47 51 55 59 63 67 nil nil nil nil nil nil 71 75 79 83 87 91 95 nil nil 103).! !
+
+!BidiEditor methodsFor: 'initialization' stamp: 'DF 4/11/2023 13:55:57'!
 initialize
 	point := 1.
-	mark := 1.! !
+	mark := 1.
+	history := ReadWriteStream on:#().! !
 
 !BidiEditor methodsFor: 'accessing' stamp: 'DF 4/6/2023 19:25:07'!
 mark
@@ -511,6 +669,12 @@ backspace
 	self moveMarkTo: point.
 ! !
 
+!BidiEditor methodsFor: 'editing' stamp: 'DF 4/11/2023 14:16:08'!
+basicReplaceFrom: start to: stop with: replacement
+	"As requested. Basic service used by Undo / Redo. Does not genertate undo."
+
+	text replaceFrom: start to: stop with: replacement! !
+
 !BidiEditor methodsFor: 'editing' stamp: 'DF 4/9/2023 18:21:35'!
 delete
 
@@ -529,38 +693,75 @@ insert: aCodePoint
 	self moveMarkTo: point.
 ! !
 
-!BidiEditor methodsFor: 'editing' stamp: 'DF 4/8/2023 15:23:10'!
-paste
+!BidiEditor methodsFor: 'editing' stamp: 'DF 4/11/2023 14:55:19'!
+paste: aText
 
-	"Paste the text from the shared buffer over the current selection and 
-	redisplay if necessary."
+	"Paste aText over the current selection."
+	
+	self replaceSelectionWith: aText.
+	
+	self movePointTo: point + aText size ; moveMarkTo: point. ! !
 
-	self replaceSelectionWith: Clipboard retrieveStringOrText ! !
-
-!BidiEditor methodsFor: 'editing' stamp: 'DF 4/7/2023 15:03:22'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 4/11/2023 14:48:41'!
 replaceSelectionWith: aText
 
-	| b e |
+	| b e aCommand |
 	
 	b := mark min: point.
 	e := mark max: point.
 	
-	text replaceFrom: b to: e - 1 with: aText
+	aCommand := text commandForReplaceFrom: b to: e-1  with: aText asUnicodeStringOrText.
+	
+	b = e and:[ history isEmpty not] and: [ history peekLast stopPosition = e ] :: 
+		ifTrue:[
+			history peekLast appendToNew: aText ]
+		ifFalse:[
+			history nextPut: aCommand; truncateAtPosition.	"To disable redo of previous commands, now invalidated." ].
+	
+	aCommand doOn: self.
+	
+	
+	
+	
 	! !
 
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/9/2023 18:16:12'!
+!BidiEditor methodsFor: 'point & mark' stamp: 'DF 4/9/2023 18:16:12'!
 decrementPointMark
 
 	self movePointTo: point - 1;  moveMarkTo: point 		! !
 
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/7/2023 20:14:17'!
+!BidiEditor methodsFor: 'point & mark' stamp: 'DF 4/11/2023 12:35:35'!
 moveMarkTo: anInteger
 	mark := anInteger min: text size + 1  :: max: 1! !
 
-!BidiEditor methodsFor: 'as yet unclassified' stamp: 'DF 4/7/2023 20:14:13'!
+!BidiEditor methodsFor: 'point & mark' stamp: 'DF 4/11/2023 12:35:39'!
 movePointTo: anInteger
 	
 	point := anInteger min: text size + 1 :: max: 1! !
+
+!BidiEditor methodsFor: 'history' stamp: 'DF 4/11/2023 15:17:27'!
+redo
+
+	| p |
+	
+	history atEnd ifTrue:[^self].
+	
+	p := history next doOn: self.
+	
+	self movePointTo: p ; moveMarkTo: p. ! !
+
+!BidiEditor methodsFor: 'history' stamp: 'DF 4/11/2023 14:40:01'!
+undo
+
+	| p |
+	
+	history position = 0 ifTrue:[^self].
+	
+	history skipBack.
+	
+	p := history peek undoOn: self.
+	
+	self movePointTo: p; moveMarkTo: p.! !
 
 !BidiLine methodsFor: 'accessing' stamp: 'DF 4/7/2023 12:30:08'!
 ascent
@@ -678,24 +879,6 @@ draw: aText on: aCanvas at: y direction: direction width: width
 		x := x + ((font widthOfString: aText from: b to: e) * direction).
 		b := e+1 ]! !
 
-!BidiLine methodsFor: 'drawing' stamp: 'DF 4/10/2023 16:55:48'!
-rectangle: aText from: bIndex to: eIndex at: y direction: direction width: width
-
-	| ix jx p q |
-	
-	self assert: (beginIndex <= bIndex and: [bIndex <= endIndex]).
-	self assert: (beginIndex <= eIndex and: [eIndex <= endIndex]).
-	
-	ix := self xcoord: aText direction: direction at: bIndex width: width.
-
-	jx := self xcoord: aText direction: direction at: eIndex width: width.
-		
-	p := direction = 1 ifTrue:[ix] ifFalse:[jx].
-	q := direction = 1 ifTrue:[jx] ifFalse:[ix].
-		
-	^p@(y + self height - ascent) extent: (q-p)@(ascent + descent)	.
-! !
-
 !BidiLine methodsFor: 'translating' stamp: 'DF 4/10/2023 16:54:36'!
 index: aText direction: direction width: width at: x
 	
@@ -715,6 +898,24 @@ index: aText direction: direction width: width at: x
 		
 	^i
 		! !
+
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/10/2023 16:55:48'!
+rectangle: aText from: bIndex to: eIndex at: y direction: direction width: width
+
+	| ix jx p q |
+	
+	self assert: (beginIndex <= bIndex and: [bIndex <= endIndex]).
+	self assert: (beginIndex <= eIndex and: [eIndex <= endIndex]).
+	
+	ix := self xcoord: aText direction: direction at: bIndex width: width.
+
+	jx := self xcoord: aText direction: direction at: eIndex width: width.
+		
+	p := direction = 1 ifTrue:[ix] ifFalse:[jx].
+	q := direction = 1 ifTrue:[jx] ifFalse:[ix].
+		
+	^p@(y + self height - ascent) extent: (q-p)@(ascent + descent)	.
+! !
 
 !BidiLine methodsFor: 'translating' stamp: 'DF 4/10/2023 16:55:48'!
 xcoord: aText direction: direction at: index width: width
@@ -768,53 +969,22 @@ draw: aText on: aCanvas
 		each draw: aText on: aCanvas at: y direction: direction width: width		].
 	! !
 
-!BidiParagraph methodsFor: 'drawing' stamp: 'DF 4/7/2023 16:19:34'!
-rectangles: aText from: bIndex to: eIndex
-
-	| iy jy i j aLine rects y |
-	
-	iy := self lineIndex: aText at:bIndex.	
-	
-	jy := self lineIndex: aText at:eIndex.	
-	
-	i := iy at:1.
-	
-	j := jy at:1.
-	
-	aLine := lines at:i.
-	y := iy at:2.
-	
-	i = j ifTrue:[ 		
-		^{ aLine rectangle: aText from: bIndex to: eIndex at: y direction: direction width: width} ].
-	
-	rects := OrderedCollection new.
-
-	rects add:(
-		aLine rectangle: aText from: bIndex to: aLine endIndex at: y direction: direction width: width).
-	i := i + 1.
-	
-	[i < j] whileTrue:[
-		y := y + aLine height.		
-		aLine := lines at:i.
-		rects add:(
-			aLine rectangle: aText from: aLine beginIndex to: aLine endIndex at: y direction: direction width: width). 
-		i := i + 1 ].
-
-	self assert: i = j.
-	
-	y := y + aLine height.		
-	aLine := lines at:i.	
-	rects add:(
-		aLine rectangle: aText from: aLine beginIndex to: eIndex at: y direction: direction width: width). 
-	
-	^rects! !
-
 !BidiParagraph methodsFor: 'initialization' stamp: 'DF 4/4/2023 21:43:54'!
 initialize
 
 	direction := 1.
 	
 	lines := OrderedCollection new.! !
+
+!BidiParagraph methodsFor: 'building' stamp: 'DF 4/11/2023 12:10:03'!
+determinePrimaryDirection: aText
+
+	| d | 
+	
+	d := aText isEmpty ifFalse:[aText first asUnicodeCodePoint writingDirection].
+	
+	direction := d = #rtl ifTrue:[-1] ifFalse:[d = #ltr ifTrue:[1] ifFalse:[direction] ].
+! !
 
 !BidiParagraph methodsFor: 'building' stamp: 'DF 4/9/2023 22:04:30'!
 lineIndex: aText at: index
@@ -829,22 +999,15 @@ lineIndex: aText at: index
 	
 	^{ i . y }! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 4/9/2023 23:07:16'!
+!BidiParagraph methodsFor: 'building' stamp: 'DF 4/11/2023 12:10:51'!
 rebuild: aText
 
-	| d line i |
+	| line i |
+	
+	self determinePrimaryDirection: aText.
 	
 	lines removeAll.
-	
-	aText isEmpty 
-		ifTrue:[ 
-			lines add: (BidiLine emptyAt:1).
-			^self].
-	
-	d := aText first asUnicodeCodePoint writingDirection.
-	
-	direction := d = #rtl ifTrue:[-1] ifFalse:[d = #ltr ifTrue:[1] ifFalse:[direction] ].
-	
+		
 	i := 1.
 	
 	[ i <= aText size ]
@@ -856,8 +1019,9 @@ rebuild: aText
 			i <= aText size and: [aText at: i :: isLineSeparator ] :: 
 				ifTrue:[ i := i + 1 ]			].
 	
-	aText last isLineSeparator ifTrue:[
-		lines add: (BidiLine emptyAt: i) ].! !
+	aText isEmpty or: [aText last isLineSeparator] :: 
+		ifTrue:[
+			lines add: (BidiLine emptyAt: i) ].! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:38:07'!
 beginIndex
@@ -965,13 +1129,55 @@ point: aText at: index
 	
 	^x@(y+aLine height - aLine ascent) extent: 0@(aLine ascent + aLine descent)! !
 
-!UnicodeCodePoint methodsFor: '*BidiText' stamp: 'DF 4/7/2023 21:35:40'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/7/2023 16:19:34'!
+rectangles: aText from: bIndex to: eIndex
+
+	| iy jy i j aLine rects y |
+	
+	iy := self lineIndex: aText at:bIndex.	
+	
+	jy := self lineIndex: aText at:eIndex.	
+	
+	i := iy at:1.
+	
+	j := jy at:1.
+	
+	aLine := lines at:i.
+	y := iy at:2.
+	
+	i = j ifTrue:[ 		
+		^{ aLine rectangle: aText from: bIndex to: eIndex at: y direction: direction width: width} ].
+	
+	rects := OrderedCollection new.
+
+	rects add:(
+		aLine rectangle: aText from: bIndex to: aLine endIndex at: y direction: direction width: width).
+	i := i + 1.
+	
+	[i < j] whileTrue:[
+		y := y + aLine height.		
+		aLine := lines at:i.
+		rects add:(
+			aLine rectangle: aText from: aLine beginIndex to: aLine endIndex at: y direction: direction width: width). 
+		i := i + 1 ].
+
+	self assert: i = j.
+	
+	y := y + aLine height.		
+	aLine := lines at:i.	
+	rects add:(
+		aLine rectangle: aText from: aLine beginIndex to: eIndex at: y direction: direction width: width). 
+	
+	^rects! !
+
+!UnicodeCodePoint methodsFor: '*BidiText' stamp: 'DF 4/11/2023 11:50:25'!
 writingDirection
 
 	32 <=  value and: value  <= 47 :: ifTrue:[^#neutral].
 	48 <= value  and:  value <= 57 :: ifTrue:[^#tltr].
 	58 <=  value and: value  <= 63 :: ifTrue:[^#neutral].
 	16x05D0 <=  value and:  value <= 16x05EA :: ifTrue:[^#rtl]. "Hebrew"
+	16x06F0 <=  value and:  value <= 16x06F9 :: ifTrue:[^#tltr]. "Eastern Arabic Numerals"
 	16x0600 <=  value and:  value <= 16x06FF :: ifTrue:[^#rtl]. "Arabic"
 	16x0750 <=  value and:  value <= 16x077F :: ifTrue:[^#rtl]. "Arabic Supplement"
 	16x0870 <=  value and:  value <= 16x08FF :: ifTrue:[^#rtl]. "Arabic Extended-A,B"
@@ -1158,3 +1364,4 @@ drawString: aString from: firstIndex to: lastIndex atBaseline: aPoint font: font
 		font: font
 		color: aColor
 		direction: direction! !
+ArabicComposer initialize!
