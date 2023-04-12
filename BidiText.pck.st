@@ -1,12 +1,12 @@
-'From Cuis 6.0 [latest update: #5722] on 11 April 2023 at 3:27:58 pm'!
-'Description '!
-!provides: 'BidiText' 1 38!
+'From Cuis 6.0 [latest update: #5722] on 12 April 2023 at 10:57:15 pm'!
+'Description BidiText provides support for displaying and editing bidirectional text.'!
+!provides: 'BidiText' 1 48!
 SystemOrganization addCategory: 'BidiText'!
 
 
 !classDefinition: #BidiTextMorph category: 'BidiText'!
 BoxedMorph subclass: #BidiTextMorph
-	instanceVariableNames: 'text editor paragraph'
+	instanceVariableNames: 'text editor page'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -44,9 +44,19 @@ Object subclass: #BidiLine
 BidiLine class
 	instanceVariableNames: ''!
 
+!classDefinition: #BidiPage category: 'BidiText'!
+Object subclass: #BidiPage
+	instanceVariableNames: 'paragraphs width'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'BidiPage class' category: 'BidiText'!
+BidiPage class
+	instanceVariableNames: ''!
+
 !classDefinition: #BidiParagraph category: 'BidiText'!
 Object subclass: #BidiParagraph
-	instanceVariableNames: 'direction lines width'
+	instanceVariableNames: 'direction lines width height'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -54,6 +64,16 @@ Object subclass: #BidiParagraph
 BidiParagraph class
 	instanceVariableNames: ''!
 
+
+!BidiLine commentStamp: '<historical>' prior: 0!
+I represent a continous area of text that occupies a rectangle, representing a single line in a paragraph. 
+My indices are relative to the beginning of my paragraph.!
+
+!BidiPage commentStamp: '<historical>' prior: 0!
+I represent a continous area of text composed of a collection of paragraphs.!
+
+!BidiParagraph commentStamp: '<historical>' prior: 0!
+I represent a continous area of text that has the same primary writing direction.!
 
 !BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/8/2023 16:26:30'!
 copySelection
@@ -66,7 +86,7 @@ copySelection
 	
 	Clipboard storeObject: aText.! !
 
-!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/8/2023 16:41:20'!
+!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/12/2023 09:48:51'!
 cut
 
 	| aText |
@@ -77,11 +97,11 @@ cut
 	Clipboard storeObject: aText.
 	
 	editor backspace.
-	paragraph rebuild: text.	
+	page rebuild: text.	
 	
 	self redrawNeeded.! !
 
-!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/11/2023 14:55:38'!
+!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/12/2023 09:49:03'!
 paste
 
 	"Paste the text from the shared buffer over the current selection and 
@@ -89,7 +109,7 @@ paste
 
 	editor paste: Clipboard retrieveStringOrText.
 	
-	paragraph rebuild: text.
+	page rebuild: text.
 	
 	self redrawNeeded.! !
 
@@ -102,12 +122,12 @@ pasteRecent
 	self clipboardTextPut: clipping.
 	^ self paste! !
 
-!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/11/2023 14:55:30'!
+!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/12/2023 09:49:10'!
 pasteString
 
 	editor paste: Clipboard retrieveStringOrText asPlainString.
 	
-	paragraph rebuild: text.
+	page rebuild: text.
 	
 	self redrawNeeded.! !
 
@@ -223,12 +243,12 @@ handlesMouseDown: aMouseButtonEvent
 handlesMouseOver: aMorphicEvent
 	^self visible ! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/11/2023 15:23:48'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/12/2023 09:45:47'!
 keyStroke: aKeyboardEvent
 
 	| dir char |
 	
-	dir := paragraph writingDirection.
+	dir := page writingDirectionAt: editor point.
 	
 	aKeyboardEvent isArrowLeft ifTrue:[
 		editor movePointTo: editor point - dir. 
@@ -243,7 +263,7 @@ keyStroke: aKeyboardEvent
 		self redrawNeeded. ^self ].
 
 	aKeyboardEvent isArrowUp ifTrue:[ 		| p |
-		p := paragraph above: text at: editor point.
+		p := page above: text at: editor point.
 		p ifNotNil: [ 
 			editor movePointTo: p.
 			aKeyboardEvent shiftPressed 
@@ -252,7 +272,7 @@ keyStroke: aKeyboardEvent
 		^self ].
 
 	aKeyboardEvent isArrowDown ifTrue:[ 		| p |
-		p := paragraph below: text at: editor point.
+		p := page below: text at: editor point.
 		p ifNotNil: [ 
 			editor movePointTo: p.
 			aKeyboardEvent shiftPressed 
@@ -262,17 +282,17 @@ keyStroke: aKeyboardEvent
 	
 	aKeyboardEvent isBackspace ifTrue:[ 
 		self backspace.
-		paragraph rebuild: text.
+		page rebuild: text.
 		self redrawNeeded. ^self ].
 
 	aKeyboardEvent isDelete ifTrue:[ 
 		editor delete.
-		paragraph rebuild: text.
+		page rebuild: text.
 		self redrawNeeded. ^self ].
 
 	aKeyboardEvent isReturnKey ifTrue:[ 
 		editor insert: String lfString.
-		paragraph rebuild: text.
+		page rebuild: text.
 		self redrawNeeded. ^self ].
 	
 	char := aKeyboardEvent keyCharacter.
@@ -291,7 +311,7 @@ keyStroke: aKeyboardEvent
 
 	self addCodePoint: char.
 			
-	paragraph rebuild: text.
+	page rebuild: text.
 	self redrawNeeded.
 	! !
 
@@ -300,12 +320,12 @@ keyboardFocusChange: aBoolean
 
 	"self halt."! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/11/2023 12:18:03'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/12/2023 09:42:52'!
 mouseButton1Down: aMouseButtonEvent localPosition: localEventPosition
 
 	| i |
 	
-	i := paragraph index: text at: localEventPosition.
+	i := page index: text at: localEventPosition.
 	
 	editor movePointTo: i; moveMarkTo: i.
 	
@@ -332,34 +352,34 @@ mouseButton2Activity
 mouseEnter: evt
 	evt hand newKeyboardFocus: self! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/7/2023 14:37:13'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/12/2023 09:43:50'!
 mouseMove: aMouseMoveEvent localPosition: localEventPosition
 
 	aMouseMoveEvent mouseButton1Pressed ifTrue:[
-		editor moveMarkTo: (paragraph index: text at: localEventPosition)	. self redrawNeeded 	]! !
+		editor moveMarkTo: (page index: text at: localEventPosition)	. self redrawNeeded 	]! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/7/2023 14:36:52'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/11/2023 18:23:09'!
 drawCursorOn: aCanvas
 
 	| aRect |
 	
-	aRect := paragraph point: text at: editor point.
+	aRect := page point: text at: editor point.
 		
 	aCanvas line: aRect origin to: aRect corner width: 2 color: Color black.! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/7/2023 14:36:56'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/12/2023 11:29:17'!
 drawOn: aCanvas
 
 	super drawOn: aCanvas.
 
 	self drawSelectionOn: aCanvas.
 	
-	paragraph draw: text on: aCanvas. 
+	page draw: text on: aCanvas. 
 	
 	self drawCursorOn: aCanvas.
 ! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/7/2023 14:37:00'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/12/2023 09:48:57'!
 drawSelectionOn: aCanvas
 
 	| b e  rects |
@@ -370,17 +390,17 @@ drawSelectionOn: aCanvas
 	
 	b = e ifTrue:[^self].
 	
-	rects := paragraph rectangles: text from: b  to: e.
+	rects := page rectangles: text from: b  to: e.
 	
 	rects do:[:each | aCanvas fillRectangle: each color: Color lightBlue ].
 ! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/7/2023 14:37:04'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/11/2023 16:53:45'!
 extentChanged: oldExtent
 	
-	paragraph width: self morphWidth ; rebuild: text ! !
+	page width: self morphWidth ; rebuild: text ! !
 
-!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 4/11/2023 12:40:35'!
+!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 4/11/2023 16:52:38'!
 initialize
 
 	super initialize.
@@ -391,30 +411,34 @@ initialize
 	
 	editor text: text.
 	
-	paragraph := BidiParagraph new.
+	page := BidiPage new.
 	
-	paragraph width: 640.
+	page width: 640.
 	
-	paragraph rebuild: text.
+	page rebuild: text.
 	
 	! !
 
-!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 4/10/2023 17:45:41'!
+!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 4/11/2023 16:53:33'!
 text: aText
 
 	text := aText asUnicodeStringOrText.
 	
 	editor text: text.
 	
-	paragraph rebuild: text.! !
+	page rebuild: text.! !
 
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/10/2023 16:48:46'!
+!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/12/2023 15:17:14'!
 addCodePoint: aCodePoint
 
-	self compatible: aCodePoint writingDirection with: paragraph writingDirection ::
+	| dir |
+	
+	dir := page writingDirectionAt: editor point.
+	
+	self compatible: aCodePoint writingDirection with: dir ::
 		ifTrue:[	 | p |
 			p := self advanceOverNeutrals: editor point.
-			p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: paragraph writingDirection ] :: 
+			p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: dir ] :: 
 				ifTrue: [ 
 					self retypeNeutralsAt: p.
 					editor insert: aCodePoint. ^self ].
@@ -438,7 +462,7 @@ addCodePoint: aCodePoint
 			code symbols belong to the contra fragment until a native code symbol is typed. Then we 
 			go back, collect the neutrals that precede the native code, and move them to their correct			position. "
 			
-			p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: paragraph writingDirection ] :: 
+			p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: dir ] :: 
 				ifTrue: [ editor decrementPointMark 					]. 
 			p <= text size and: [ text at:p :: writingDirection = #tltr ] :: 
 				ifTrue:[ editor decrementPointMark 					]. 
@@ -447,11 +471,20 @@ addCodePoint: aCodePoint
 	" digits break the left-to-right right-to-left symmetry because they are always typed 
 	left-to-right, even in right-to-left languages."
 	
-	aCodePoint writingDirection = #tltr and: [paragraph writingDirection = 1] :: 
+	aCodePoint writingDirection = #tltr and: [dir = 1] :: 
 		ifTrue:[
 			editor insert: aCodePoint.		 
 			^self ].
 
+	" The code point is contra to the paragraph's writing direction,
+	but if this is the first non line separator after two line separators
+	then we should use it to determine the writing direction because
+	once the page will be rebuilt it will be the first character in a new paragraph."
+	
+	text size = 0 or:[text size = 1 and:[text at:1 :: isLineSeparator] ] or:[editor point > 2 and:[text at: editor point - 1 :: isLineSeparator ] and: [text at: editor point - 2 :: isLineSeparator ] ] :: ifTrue:[
+		editor insert: aCodePoint.				
+		^self ].
+	
 	" at this point we know that we are typing a contra code point (a code point whose writing direction
 	is contra to the paragraph's writing direction). "
 		
@@ -472,7 +505,7 @@ advanceOverNeutrals: anIndex
 	
 	^i! !
 
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/10/2023 16:31:58'!
+!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/12/2023 13:09:53'!
 advanceToNative: anIndex
 
 	" advance from anIndex until you either get to a code point whose writing direction is 
@@ -480,7 +513,7 @@ advanceToNative: anIndex
 	
 	| native i |
 	
-	native := paragraph writingDirection = 1 ifTrue:[#ltr] ifFalse:[#rtl].
+	native := page writingDirectionAt: editor point :: = 1 ifTrue:[#ltr] ifFalse:[#rtl].
 	
 	i := anIndex.
 	
@@ -488,7 +521,7 @@ advanceToNative: anIndex
 	
 	^i! !
 
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/10/2023 16:30:34'!
+!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/12/2023 13:10:02'!
 backToContra: anIndex
 
 	" go back from anIndex until you either get to a code point whose writing direction is contra
@@ -496,7 +529,7 @@ backToContra: anIndex
 	
 	| contra i c |
 	
-	contra := paragraph writingDirection = 1 ifTrue:[#rtl] ifFalse:[#ltr].
+	contra := page writingDirectionAt: editor point :: = 1 ifTrue:[#rtl] ifFalse:[#ltr].
 	
 	i := anIndex.
 	
@@ -508,17 +541,19 @@ backToContra: anIndex
 	
 	^i! !
 
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/10/2023 17:39:21'!
+!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/12/2023 09:48:30'!
 backspace
 
-	| p |
+	| p dir |
+	
+	dir := page writingDirectionAt: editor point.
 	
 	p := self advanceOverNeutrals: editor point.
 	
-	p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: paragraph writingDirection ] :: 
+	p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: dir ] :: 
 		ifTrue:[editor delete. ^self].
 
-	p <= text size and: [ text at:p :: writingDirection = #tltr and: [ paragraph writingDirection = -1 ] ] :: 
+	p <= text size and: [ text at:p :: writingDirection = #tltr and: [ dir = -1 ] ] :: 
 		ifTrue:[editor delete. ^self].
 		
 	editor backspace.! !
@@ -554,21 +589,21 @@ retypeNeutralsAt: anIndex
 !BidiTextMorph methodsFor: 'history' stamp: 'DF 4/11/2023 15:05:50'!
 offerUndoHistory! !
 
-!BidiTextMorph methodsFor: 'history' stamp: 'DF 4/11/2023 15:18:12'!
+!BidiTextMorph methodsFor: 'history' stamp: 'DF 4/12/2023 09:49:14'!
 redo
 
 	editor redo.
 	
-	paragraph rebuild: text.
+	page rebuild: text.
 	
 	self redrawNeeded.! !
 
-!BidiTextMorph methodsFor: 'history' stamp: 'DF 4/11/2023 15:07:21'!
+!BidiTextMorph methodsFor: 'history' stamp: 'DF 4/12/2023 09:49:18'!
 undo
 
 	editor undo.
 	
-	paragraph rebuild: text.
+	page rebuild: text.
 	
 	self redrawNeeded.! !
 
@@ -826,16 +861,16 @@ advanceIn: aString from: index
 	
 	^i! !
 
-!BidiLine methodsFor: 'building' stamp: 'DF 4/9/2023 23:03:52'!
-rebuild: aText index: anInteger width: width
+!BidiLine methodsFor: 'building' stamp: 'DF 4/11/2023 17:41:08'!
+rebuild: aText base: baseIndex index: anInteger width: width
 	
 	| w h ex i m |
 
 	beginIndex := anInteger.
 	endIndex := anInteger.
 	
-	i := self advanceIn: aText from: endIndex.
-	m := aText metricsFrom: endIndex to: i - 1.
+	i := self advanceIn: aText from: baseIndex + endIndex.
+	m := aText metricsFrom: baseIndex + endIndex to: i - 1.
 	ex := m at:1.
 
 	ascent := m at:2.
@@ -843,22 +878,22 @@ rebuild: aText index: anInteger width: width
 	h := ex y.
 	w := 0.
 		
-	[w + ex x <= width and:[endIndex <= aText size] and: [ aText at:endIndex :: isLineSeparator not ] ] 
+	[w + ex x <= width and:[baseIndex + endIndex <= aText size] and: [ aText at:baseIndex + endIndex :: isLineSeparator not ] ] 
 		whileTrue:[
 			w := w + ex x.
 			h := h max: ex y.			
 			ascent := ascent max: (m at: 2).
 			descent := descent max: (m at: 3).
-			endIndex := i.
-			i := self advanceIn: aText from: endIndex.
-			m := aText metricsFrom: endIndex to: i - 1		.
+			endIndex := i - baseIndex.
+			i := self advanceIn: aText from: baseIndex + endIndex.
+			m := aText metricsFrom: baseIndex + endIndex to: i - 1		.
 			ex := m at:1	 	].
 	
 	extent := w@h.
 	! !
 
-!BidiLine methodsFor: 'drawing' stamp: 'DF 4/7/2023 12:22:32'!
-draw: aText on: aCanvas at: y direction: direction width: width 
+!BidiLine methodsFor: 'drawing' stamp: 'DF 4/11/2023 17:30:42'!
+draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width 
 
 	| x b e j font color r |
 	
@@ -867,14 +902,14 @@ draw: aText on: aCanvas at: y direction: direction width: width
 	
 	x := direction = 1 ifTrue:[0] ifFalse:[width].
 
-	b := beginIndex.
+	b := baseIndex + beginIndex.
 	
-	[ b < endIndex ] whileTrue:[
+	[ b < (baseIndex + endIndex) ] whileTrue:[
 		
 		j := aText runLengthFor: b.
 		font := aText fontAt: b default: nil.
 		color := aText colorAt: b :: ifNil:[Color black].
-		e := b+j-1 min: endIndex - 1.
+		e := b+j-1 min: baseIndex + endIndex - 1.
 		aCanvas drawString: aText asString from: b to: e atBaseline: x@y font: font color: color direction: direction.
 		x := x + ((font widthOfString: aText from: b to: e) * direction).
 		b := e+1 ]! !
@@ -899,17 +934,17 @@ index: aText direction: direction width: width at: x
 	^i
 		! !
 
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/10/2023 16:55:48'!
-rectangle: aText from: bIndex to: eIndex at: y direction: direction width: width
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/12/2023 12:09:08'!
+rectangle: aText base: baseIndex from: bIndex to: eIndex at: y direction: direction width: width
 
 	| ix jx p q |
 	
 	self assert: (beginIndex <= bIndex and: [bIndex <= endIndex]).
 	self assert: (beginIndex <= eIndex and: [eIndex <= endIndex]).
 	
-	ix := self xcoord: aText direction: direction at: bIndex width: width.
+	ix := self xcoord: aText direction: direction base: baseIndex at: bIndex width: width.
 
-	jx := self xcoord: aText direction: direction at: eIndex width: width.
+	jx := self xcoord: aText direction: direction base: baseIndex at: eIndex width: width.
 		
 	p := direction = 1 ifTrue:[ix] ifFalse:[jx].
 	q := direction = 1 ifTrue:[jx] ifFalse:[ix].
@@ -917,14 +952,14 @@ rectangle: aText from: bIndex to: eIndex at: y direction: direction width: width
 	^p@(y + self height - ascent) extent: (q-p)@(ascent + descent)	.
 ! !
 
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/10/2023 16:55:48'!
-xcoord: aText direction: direction at: index width: width
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/11/2023 18:39:55'!
+xcoord: aText direction: direction base: baseIndex at: index width: width
 
 	" answer the x coordinate of the code point whose index is index. "	
 	
 	| ex m |
 	
-	m := aText metricsFrom: beginIndex to: index-1.
+	m := aText metricsFrom: baseIndex + beginIndex to: baseIndex + index-1.
 	ex := m at:1.
 	direction = 1 ifTrue:[ ^ex x] ifFalse:[^width - ex x].	
 		! !
@@ -955,81 +990,300 @@ emptyAt: anIndex
 	
 	^aLine! !
 
-!BidiParagraph methodsFor: 'drawing' stamp: 'DF 4/9/2023 18:33:13'!
+!BidiPage methodsFor: 'accessing' stamp: 'DF 4/11/2023 15:46:43'!
+width: anInteger
+	width := anInteger! !
+
+!BidiPage methodsFor: 'as yet unclassified' stamp: 'DF 4/12/2023 12:57:40'!
+writingDirectionAt: anIndex
+
+	| i icy |
+	
+	paragraphs isEmpty ifTrue:[^1]. "default to left-to-right"
+	
+	icy := self paragraphAt: anIndex.
+	
+	i := icy at:1.
+	
+	i = (paragraphs size + 1) ifTrue:[i := i - 1]. "past the end of text, use writing direction of last paragraph"
+	
+	^ paragraphs at: i :: writingDirection! !
+
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 15:39:35'!
+above: aText at: anIndex
+
+	| pc p c i |
+
+	pc := self paragraphAt: anIndex.
+	
+	p := pc at:1.
+	c := pc at:2.
+	
+	i := paragraphs at:p :: above: aText at: anIndex - c.
+	
+	i ifNotNil:[^c + i].
+	
+	p = 1 ifTrue:[^ anIndex ].
+	
+	c := c - (paragraphs at: p - 1 :: count).
+	
+	^ c + (paragraphs at: p-1 :: endIndex)
+	! !
+
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 15:37:47'!
+below: aText at: anIndex
+
+	| pc p c i |
+
+	pc := self paragraphAt: anIndex.
+	
+	p := pc at:1.
+	c := pc at:2.
+	
+	p = (paragraphs size + 1) ifTrue:[^ anIndex].
+	
+	i := paragraphs at:p :: below: aText at: anIndex - c.
+	
+	i ifNotNil:[^c + i].
+	
+	p = paragraphs size ifTrue:[^ anIndex ].
+	
+	c := c + (paragraphs at: p :: count).
+	
+	^ c + (paragraphs at: p+1 :: beginIndex)
+	! !
+
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 10:22:09'!
+index: aText at: aPoint
+
+	| y i c |
+	
+	self assert: aPoint y >= 0.
+	
+	y := 0.
+	
+	c := 0.
+	
+	i := 1.
+	
+	[i <= paragraphs size and: [aPoint y > ((paragraphs at:i :: height) + y) ] ] 
+		whileTrue:[ y := y + (paragraphs at:i :: height). c := c + (paragraphs at:i :: count) . i := i + 1].
+
+	i <= paragraphs size 	
+		ifTrue:[^ c + (paragraphs at:i :: index: aText at: aPoint - (0@y))].
+		
+	paragraphs isEmpty ifTrue:[^1].
+	
+	^ c + paragraphs last endIndex.
+! !
+
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 22:56:32'!
+paragraphAt: charIndex
+
+	| i c y |
+	
+	i := 1.
+	
+	c := 0.
+	
+	y := 0.
+	
+	[i <= paragraphs size and: [paragraphs at: i :: count + c <  charIndex] ]
+		whileTrue:[c := c + (paragraphs at:i :: count). y := y + (paragraphs at:i :: height). i := i + 1.   ].
+		
+	^ { i . c . y }
+	! !
+
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 16:54:46'!
+point: aText at: absoluteIndex
+
+	| i c y icy |
+
+	icy := self paragraphAt: absoluteIndex.
+	
+	i := icy at:1.
+	
+	c := icy at:2.
+	
+	y := icy at:3.
+
+	i = (paragraphs size + 1) "point is past the last character in the text"
+		ifTrue:[ ^ (paragraphs last lastPoint: aText base: c) translatedBy: (0@y) ].
+
+	self assert: i <= paragraphs size.
+	
+	^ (paragraphs at: i :: point: aText base: c at: absoluteIndex - c) translatedBy: (0@y).
+	! !
+
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 13:13:54'!
+rectangles: aText from: bIndex to: eIndex
+
+	| bcy ecy y c b e i rects |
+	
+	bcy := self paragraphAt: bIndex.
+	
+	ecy := self paragraphAt: eIndex.
+	
+	b := bcy at:1.
+
+	c := bcy at:2.
+	
+	y := bcy at:3.
+	
+	e := ecy at:1 :: min: paragraphs size.
+		
+	i := bIndex.
+	
+	rects := OrderedCollection new.
+	
+	b to:e do:[:k | | p pe r |
+		p := paragraphs at: k.
+		pe := p endIndex min: eIndex - c.
+		r := p rectangles: aText base: c from: i - c to: pe.
+		rects addAll: (r collect:[:each | each translatedBy: 0@y]).
+		i := pe + c + 1.
+		c := c + p count.
+		y := y + p height].
+	
+	^rects 
+		
+			
+	! !
+
+!BidiPage methodsFor: 'building' stamp: 'DF 4/12/2023 12:45:17'!
+rebuild: aText
+
+	| i aParagraph dir |
+	
+	dir := #ltr.
+	
+	paragraphs removeAll.
+	
+	i := 0.
+	
+	[ i < aText size ]
+		whileTrue:[
+			aParagraph := BidiParagraph new width: width; writingDirection: dir; rebuild: aText from: i; yourself.
+			paragraphs add: aParagraph.
+			dir := aParagraph writingDirection.
+			i := i + aParagraph count ].
+		
+		! !
+
+!BidiPage methodsFor: 'initialization' stamp: 'DF 4/11/2023 15:46:54'!
+initialize
+
+	paragraphs := OrderedCollection new.
+	
+	width := 640.! !
+
+!BidiPage methodsFor: 'drawing' stamp: 'DF 4/11/2023 21:36:47'!
 draw: aText on: aCanvas
+
+	| i y |
+	
+	paragraphs isEmpty ifTrue:[^self].
+	
+	y := 0.
+	i := 0.
+	
+	paragraphs do:[:each |
+		each draw: aText from: i on: aCanvas at: y.
+		y := y + each height.
+		i := i + each count ].
+! !
+
+!BidiParagraph methodsFor: 'drawing' stamp: 'DF 4/11/2023 17:31:21'!
+draw: aText from: baseIndex on: aCanvas at: y0
 
 	| y |
 	
 	lines isEmpty ifTrue:[^self].
 	
-	y := 0.
+	y := y0.
 	
 	lines do:[:each |
 		y := y + each height.
-		each draw: aText on: aCanvas at: y direction: direction width: width		].
+		each draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width		].
 	! !
 
-!BidiParagraph methodsFor: 'initialization' stamp: 'DF 4/4/2023 21:43:54'!
+!BidiParagraph methodsFor: 'initialization' stamp: 'DF 4/11/2023 16:47:43'!
 initialize
 
 	direction := 1.
 	
-	lines := OrderedCollection new.! !
-
-!BidiParagraph methodsFor: 'building' stamp: 'DF 4/11/2023 12:10:03'!
-determinePrimaryDirection: aText
-
-	| d | 
+	lines := OrderedCollection new.
 	
-	d := aText isEmpty ifFalse:[aText first asUnicodeCodePoint writingDirection].
+	height := 0.! !
+
+!BidiParagraph methodsFor: 'building' stamp: 'DF 4/12/2023 12:43:14'!
+determinePrimaryDirection: aText at: anIndex
+
+	| d i | 
+	
+	i := anIndex + 1.
+	
+	d := i <= aText size ifTrue:[aText at: i :: writingDirection].
 	
 	direction := d = #rtl ifTrue:[-1] ifFalse:[d = #ltr ifTrue:[1] ifFalse:[direction] ].
 ! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 4/9/2023 22:04:30'!
-lineIndex: aText at: index
-
-	|i y |
-	
-	i := 1.
-	y := 0.
-	
-	[i <= lines size and:[lines at:i :: endIndex < index]  ] 
-		whileTrue:[y := y + (lines at:i :: height). i := i + 1. ].
-	
-	^{ i . y }! !
-
-!BidiParagraph methodsFor: 'building' stamp: 'DF 4/11/2023 12:10:51'!
-rebuild: aText
+!BidiParagraph methodsFor: 'building' stamp: 'DF 4/11/2023 21:50:14'!
+rebuild: aText from: anIndex
 
 	| line i |
 	
-	self determinePrimaryDirection: aText.
+	self determinePrimaryDirection: aText at: anIndex.
 	
 	lines removeAll.
-		
-	i := 1.
 	
-	[ i <= aText size ]
+	height := 0.
+		
+	" A pargraph contains all characters until the first non line separator after
+	two or more line separators."
+	
+	i := anIndex + 1.
+	
+	[ i <= aText size and: [aText at:i :: isLineSeparator not ] ]
 		whileTrue: [
-			line := BidiLine new rebuild: aText index: i width: width ; yourself.
+			line := BidiLine new rebuild: aText base: anIndex index: i - anIndex width: width ; yourself.
 			lines add: line.
-			self assert: (i > aText size or: [aText at:i :: isLineSeparator] or: [line endIndex > i]).
-			i := line endIndex.
+			height := height + line height.
+			self assert: (i > aText size or: [aText at:i :: isLineSeparator] or: [anIndex + line endIndex > i]).
+			i := line endIndex + anIndex.
 			i <= aText size and: [aText at: i :: isLineSeparator ] :: 
 				ifTrue:[ i := i + 1 ]			].
 	
-	aText isEmpty or: [aText last isLineSeparator] :: 
-		ifTrue:[
-			lines add: (BidiLine emptyAt: i) ].! !
+	" We have seen two line separators in a row. Add all the other lines separators. "
+	
+	[ i <= aText size and: [aText at:i :: isLineSeparator ] ]
+		whileTrue:[
+			line := BidiLine emptyAt: i - anIndex.
+			lines add: line.
+			height := height + line height.
+			i := i + 1 ].
+		
+	aText isEmpty 	ifTrue:[	
+		line := BidiLine emptyAt: i - anIndex.
+		lines add: line.
+		height := height + line height		 ].
+	! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:38:07'!
 beginIndex
 	^lines first beginIndex! !
 
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/11/2023 22:35:03'!
+count
+	^self endIndex - self beginIndex + 1! !
+
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:38:13'!
 endIndex
 	^lines last endIndex! !
+
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/11/2023 16:47:36'!
+height
+	^height! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 19:58:04'!
 width: anInteger
@@ -1039,7 +1293,11 @@ width: anInteger
 writingDirection
 	^direction! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/10/2023 17:12:02'!
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/12/2023 12:45:03'!
+writingDirection: aDirection
+	direction := aDirection! !
+
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 10:26:21'!
 above: aText at: anIndex
 
 	"Answers the index of the code point directly above anIndex. That is,
@@ -1049,7 +1307,7 @@ above: aText at: anIndex
 	
 	| iy i aLine aLineAbove offset |
 	
-	iy := self lineIndex: aText at: anIndex.
+	iy := self lineAt: anIndex.
 	
 	i := iy at:1.
 	
@@ -1064,7 +1322,7 @@ above: aText at: anIndex
 	^ aLineAbove beginIndex + offset min: aLineAbove endIndex.
 	! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/10/2023 17:16:35'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 10:26:28'!
 below: aText at: anIndex
 
 	"Answers the index of the code point directly below anIndex. That is,
@@ -1074,7 +1332,7 @@ below: aText at: anIndex
 	
 	| iy i aLine aLineBelow offset |
 	
-	iy := self lineIndex: aText at: anIndex.
+	iy := self lineAt: anIndex.
 	
 	i := iy at:1.
 	
@@ -1111,32 +1369,66 @@ index: aText at: aPoint
 	^ lines last endIndex.
 	! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/10/2023 16:55:48'!
-point: aText at: index
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 16:58:31'!
+lastPoint: aText base: baseIndex 
+
+	| x aLine |
+	
+	aLine := lines last.
+	
+	x := aLine xcoord: aText direction: direction base: baseIndex at: aLine endIndex width: width.
+	
+	^x@(0 - aLine ascent) extent: 0@(aLine ascent + aLine descent)! !
+
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 22:47:22'!
+lineAt: offset
+
+	|i y |
+	
+	i := 1.
+	y := 0.
+	
+	[i <= lines size and:[lines at:i :: endIndex < offset]  ] 
+		whileTrue:[y := y + (lines at:i :: height). i := i + 1. ].
+	
+	" When the offset is equal to endIndex we have two alternatives: either
+	the next line starts with the same offset, in which case we should answer
+	the next line, or if it doesn't, we should chose this line. If this is the last
+	line in the paragraph we always chose it because the next line will start a 
+	new paragraph and therefore its beginIndex will be different."
+	
+	self assert: i <= (lines size + 1).
+	
+	i = lines size ifTrue:[^ { i.y }].
+	
+	lines at:i :: endIndex = offset and: [ lines at: i+1 :: beginIndex = offset ] :: 
+		ifTrue:[^ {i+1 . y + (lines at: i + 1 :: height)} ].
+	
+	^{ i . y }! !
+
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 16:10:03'!
+point: aText base: baseIndex at: offset
 
 	|i y iy x aLine |
 	
-	iy := self lineIndex: aText at: index.
+	iy := self lineAt: offset.
 	
 	i := iy at:1. y := iy at:2.
 	
-	i = (lines size + 1) "point is past the last character in the text"
-		ifTrue:[i := i - 1. y := y - (lines at:i :: height)].
-		
 	aLine := lines at:i.
 	
-	x := aLine xcoord: aText direction: direction at: index width: width.
+	x := aLine xcoord: aText direction: direction base: baseIndex at: offset width: width.
 	
 	^x@(y+aLine height - aLine ascent) extent: 0@(aLine ascent + aLine descent)! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/7/2023 16:19:34'!
-rectangles: aText from: bIndex to: eIndex
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 14:41:19'!
+rectangles: aText base: baseIndex from: bIndex to: eIndex
 
 	| iy jy i j aLine rects y |
 	
-	iy := self lineIndex: aText at:bIndex.	
+	iy := self lineAt:bIndex.	
 	
-	jy := self lineIndex: aText at:eIndex.	
+	jy := self lineAt:eIndex.	
 	
 	i := iy at:1.
 	
@@ -1146,19 +1438,19 @@ rectangles: aText from: bIndex to: eIndex
 	y := iy at:2.
 	
 	i = j ifTrue:[ 		
-		^{ aLine rectangle: aText from: bIndex to: eIndex at: y direction: direction width: width} ].
+		^{ aLine rectangle: aText base: baseIndex from: bIndex to: eIndex at: y direction: direction width: width} ].
 	
 	rects := OrderedCollection new.
 
 	rects add:(
-		aLine rectangle: aText from: bIndex to: aLine endIndex at: y direction: direction width: width).
+		aLine rectangle: aText base: baseIndex from: bIndex to: aLine endIndex at: y direction: direction width: width).
 	i := i + 1.
 	
 	[i < j] whileTrue:[
 		y := y + aLine height.		
 		aLine := lines at:i.
 		rects add:(
-			aLine rectangle: aText from: aLine beginIndex to: aLine endIndex at: y direction: direction width: width). 
+			aLine rectangle: aText base: baseIndex from: aLine beginIndex to: aLine endIndex at: y direction: direction width: width). 
 		i := i + 1 ].
 
 	self assert: i = j.
@@ -1166,7 +1458,7 @@ rectangles: aText from: bIndex to: eIndex
 	y := y + aLine height.		
 	aLine := lines at:i.	
 	rects add:(
-		aLine rectangle: aText from: aLine beginIndex to: eIndex at: y direction: direction width: width). 
+		aLine rectangle: aText base: baseIndex from: aLine beginIndex to: eIndex at: y direction: direction width: width). 
 	
 	^rects! !
 
