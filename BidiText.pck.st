@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 12 April 2023 at 10:57:15 pm'!
+'From Cuis 6.0 [latest update: #5753] on 13 April 2023 at 3:49:46 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 48!
+!provides: 'BidiText' 1 49!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -419,10 +419,10 @@ initialize
 	
 	! !
 
-!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 4/11/2023 16:53:33'!
+!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 4/13/2023 15:00:12'!
 text: aText
 
-	text := aText asUnicodeStringOrText.
+	text := aText asUnicodeStringOrText asText.
 	
 	editor text: text.
 	
@@ -1094,11 +1094,13 @@ paragraphAt: charIndex
 	^ { i . c . y }
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 16:54:46'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/13/2023 14:59:07'!
 point: aText at: absoluteIndex
 
 	| i c y icy |
 
+	paragraphs isEmpty ifTrue:[^0@0 extent:0@0].
+	
 	icy := self paragraphAt: absoluteIndex.
 	
 	i := icy at:1.
