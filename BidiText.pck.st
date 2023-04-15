@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5753] on 13 April 2023 at 3:49:46 pm'!
+'From Cuis 6.0 [latest update: #5722] on 15 April 2023 at 9:41:15 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 49!
+!provides: 'BidiText' 1 59!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -36,7 +36,7 @@ BidiEditor class
 
 !classDefinition: #BidiLine category: 'BidiText'!
 Object subclass: #BidiLine
-	instanceVariableNames: 'beginIndex endIndex extent ascent descent'
+	instanceVariableNames: 'beginIndex endIndex extent ascent descent zones'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -64,6 +64,46 @@ Object subclass: #BidiParagraph
 BidiParagraph class
 	instanceVariableNames: ''!
 
+!classDefinition: #BidiToken category: 'BidiText'!
+Object subclass: #BidiToken
+	instanceVariableNames: 'tag begin end'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'BidiToken class' category: 'BidiText'!
+BidiToken class
+	instanceVariableNames: ''!
+
+!classDefinition: #BidiZone category: 'BidiText'!
+Object subclass: #BidiZone
+	instanceVariableNames: 'beginIndex endIndex extent ascent descent'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'BidiZone class' category: 'BidiText'!
+BidiZone class
+	instanceVariableNames: ''!
+
+!classDefinition: #BidiContraZone category: 'BidiText'!
+BidiZone subclass: #BidiContraZone
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'BidiContraZone class' category: 'BidiText'!
+BidiContraZone class
+	instanceVariableNames: ''!
+
+!classDefinition: #BidiNativeZone category: 'BidiText'!
+BidiZone subclass: #BidiNativeZone
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'BidiNativeZone class' category: 'BidiText'!
+BidiNativeZone class
+	instanceVariableNames: ''!
+
 
 !BidiLine commentStamp: '<historical>' prior: 0!
 I represent a continous area of text that occupies a rectangle, representing a single line in a paragraph. 
@@ -74,6 +114,16 @@ I represent a continous area of text composed of a collection of paragraphs.!
 
 !BidiParagraph commentStamp: '<historical>' prior: 0!
 I represent a continous area of text that has the same primary writing direction.!
+
+!BidiZone commentStamp: '<historical>' prior: 0!
+I represent a continous area of a text line that has the same writing direction. My indices are offsets from the 
+beginning of my line's paragraph.!
+
+!BidiContraZone commentStamp: '<historical>' prior: 0!
+I am a zone whose writing direction goes against my line's paragraph writing direction!
+
+!BidiNativeZone commentStamp: '<historical>' prior: 0!
+I am a zone whose writing direction is the same as my line's paragraph writing direction!
 
 !BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/8/2023 16:26:30'!
 copySelection
@@ -367,12 +417,12 @@ drawCursorOn: aCanvas
 		
 	aCanvas line: aRect origin to: aRect corner width: 2 color: Color black.! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/12/2023 11:29:17'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/15/2023 18:12:00'!
 drawOn: aCanvas
 
 	super drawOn: aCanvas.
 
-	self drawSelectionOn: aCanvas.
+	"self drawSelectionOn: aCanvas."
 	
 	page draw: text on: aCanvas. 
 	
@@ -419,10 +469,10 @@ initialize
 	
 	! !
 
-!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 4/13/2023 15:00:12'!
+!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 4/11/2023 16:53:33'!
 text: aText
 
-	text := aText asUnicodeStringOrText asText.
+	text := aText asUnicodeStringOrText.
 	
 	editor text: text.
 	
@@ -806,9 +856,9 @@ ascent
 ascent: aNumber
 	ascent := aNumber! !
 
-!BidiLine methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:37:58'!
+!BidiLine methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:36:33'!
 beginIndex
-	^beginIndex! !
+	^zones first beginIndex! !
 
 !BidiLine methodsFor: 'accessing' stamp: 'DF 4/4/2023 17:47:23'!
 beginIndex: anInteger
@@ -822,9 +872,9 @@ descent
 descent: aNumber
 	descent := aNumber! !
 
-!BidiLine methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:22:37'!
+!BidiLine methodsFor: 'accessing' stamp: 'DF 4/15/2023 18:01:08'!
 endIndex
-	^endIndex! !
+	^zones last endIndex! !
 
 !BidiLine methodsFor: 'accessing' stamp: 'DF 4/4/2023 17:47:32'!
 endIndex: anInteger
@@ -842,59 +892,66 @@ height
 width
 	^extent x! !
 
-!BidiLine methodsFor: 'building' stamp: 'DF 4/10/2023 16:50:29'!
-advanceIn: aString from: index
+!BidiLine methodsFor: 'building' stamp: 'DF 4/15/2023 13:51:27'!
+emptyAt: anIndex
 
-	"If the character at index is a separator advance once, if not a separator, advance until a separator. "
+	| aZone |
 	
-	| i |
+	aZone := BidiZone emptyAt: anIndex. 
 	
-	index > aString size ifTrue:[^index].
+	ascent := aZone ascent.
+	descent := aZone descent.
+	extent := aZone extent.
 	
-	aString at:index :: isSeparator ifTrue:[^index + 1].
+	zones removeAll; add: aZone.
 	
-	i := index.
 	
-	i := i + 1.
-	
-	[i <= aString size and:[aString at:i :: isSeparator not] ] whileTrue:[i := i + 1].
-	
-	^i! !
+! !
 
-!BidiLine methodsFor: 'building' stamp: 'DF 4/11/2023 17:41:08'!
-rebuild: aText base: baseIndex index: anInteger width: width
-	
-	| w h ex i m |
+!BidiLine methodsFor: 'building' stamp: 'DF 4/15/2023 16:08:42'!
+rebuild: aText base: baseIndex next: aToken direction: dir width: width
 
-	beginIndex := anInteger.
-	endIndex := anInteger.
-	
-	i := self advanceIn: aText from: baseIndex + endIndex.
-	m := aText metricsFrom: baseIndex + endIndex to: i - 1.
-	ex := m at:1.
+	| current next zone w h |
 
-	ascent := m at:2.
-	descent := m at:3.
-	h := ex y.
-	w := 0.
-		
-	[w + ex x <= width and:[baseIndex + endIndex <= aText size] and: [ aText at:baseIndex + endIndex :: isLineSeparator not ] ] 
+	self assert: (aToken tag ~= #eot).
+	
+	zones removeAll.
+	
+	current := aToken.
+
+	w := width.
+	
+	zone := BidiZone from: aText token: aToken direction: dir.
+	next := zone rebuild: aText base: baseIndex next: current direction: dir width: w.
+	
+	[zone width <= w and: [current tag ~= #eot ] and:[current tag ~= #nl ] and:[next end > current end] ] 
 		whileTrue:[
-			w := w + ex x.
-			h := h max: ex y.			
-			ascent := ascent max: (m at: 2).
-			descent := descent max: (m at: 3).
-			endIndex := i - baseIndex.
-			i := self advanceIn: aText from: baseIndex + endIndex.
-			m := aText metricsFrom: baseIndex + endIndex to: i - 1		.
-			ex := m at:1	 	].
+			zones add: zone.
+			w := w - zone width.
+			current := next.
+			zone := BidiZone from: aText token: current direction: dir.
+			next := zone rebuild: aText base: baseIndex next: current direction: dir width: w ].
 	
-	extent := w@h.
-	! !
+	ascent := zones inject: 0 into:[:acc : each | acc max: each ascent].
+	descent := zones inject: 0 into:[:acc : each | acc max: each descent].
+	h := zones inject: 0 into:[:acc : each 		| acc max: each height].
+	extent := width - w @ h.
+	
+	^next
+			 ! !
 
-!BidiLine methodsFor: 'drawing' stamp: 'DF 4/11/2023 17:30:42'!
+!BidiLine methodsFor: 'drawing' stamp: 'DF 4/14/2023 21:09:47'!
 draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width 
 
+	| x |
+	
+	x := direction = 1 ifTrue:[0] ifFalse:[width].
+	
+	zones do:[:each |
+		each draw: aText from: baseIndex on: aCanvas at: (x@y) direction: direction.
+		x := x + (each width * direction) ].
+		
+"
 	| x b e j font color r |
 	
 	r := direction = 1 ifTrue:[0@(y - extent y) extent: extent] ifFalse:[width - extent x@(y - extent y) extent: extent].
@@ -912,27 +969,28 @@ draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width
 		e := b+j-1 min: baseIndex + endIndex - 1.
 		aCanvas drawString: aText asString from: b to: e atBaseline: x@y font: font color: color direction: direction.
 		x := x + ((font widthOfString: aText from: b to: e) * direction).
-		b := e+1 ]! !
+		b := e+1 ]"! !
 
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/10/2023 16:54:36'!
-index: aText direction: direction width: width at: x
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/15/2023 18:46:02'!
+index: aText direction: direction width: width at: xCoord
+
+	| x i |
 	
-	" answer the index of the code point located at x coordinate x. "
+	self assert: xCoord >= 0.
 	
-	| beginx i font |
+	x := direction = 1 ifTrue:[0] ifFalse:[width].
+	 
+	i := 1.
 	
-	beginx := direction = 1 ifTrue:[ 0] ifFalse:[width].
-	
-	i := beginIndex.
-	
-	[ i < endIndex and:[ beginx * direction < (x * direction) ] ] 
-		whileTrue:[
-			font := aText fontAt: i default:nil.
-			beginx := beginx + ((font widthOf: (aText at:i)) * direction). 
-			i := i + 1 ].
+	[i <= zones size and: [ (xCoord * direction) > ((zones at:i :: width) * direction + x) ] ] 
+		whileTrue:[ x := x + ((zones at:i :: width) * direction). i := i + 1].
+
+	i <= zones size 	
+		ifTrue:[^ zones at:i :: index: aText direction:direction width: x at: xCoord].
 		
-	^i
-		! !
+	^ zones last endIndex.
+		
+! !
 
 !BidiLine methodsFor: 'translating' stamp: 'DF 4/12/2023 12:09:08'!
 rectangle: aText base: baseIndex from: bIndex to: eIndex at: y direction: direction width: width
@@ -952,41 +1010,37 @@ rectangle: aText base: baseIndex from: bIndex to: eIndex at: y direction: direct
 	^p@(y + self height - ascent) extent: (q-p)@(ascent + descent)	.
 ! !
 
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/11/2023 18:39:55'!
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/15/2023 21:33:58'!
 xcoord: aText direction: direction base: baseIndex at: index width: width
 
 	" answer the x coordinate of the code point whose index is index. "	
 	
-	| ex m |
+	| i x |
 	
-	m := aText metricsFrom: baseIndex + beginIndex to: baseIndex + index-1.
-	ex := m at:1.
-	direction = 1 ifTrue:[ ^ex x] ifFalse:[^width - ex x].	
+	i := 1.
+	x := direction = 1 ifTrue:[0] ifFalse:[width].
+	
+	[i <= zones size and: [index >= (zones at:i :: endIndex)] ] 
+		whileTrue:[x := x + ((zones at:i :: width) * direction). i := i + 1. ].
+	
+	self assert: i <= zones size.
+	
+	^ zones at:i :: xcoord: aText direction: direction base: baseIndex at: index width: x
+
 		! !
 
-!BidiLine class methodsFor: 'instance creation' stamp: 'DF 4/9/2023 19:02:52'!
-empty
+!BidiLine methodsFor: 'initialization' stamp: 'DF 4/14/2023 19:15:43'!
+initialize
+	zones := OrderedCollection new.! !
 
-	| aFont aLine |
-	
-	aFont := FontFamily defaultFamilyAndPointSize.
-	
-	aLine := self new.
-	 
-	aLine beginIndex: 1 ; endIndex: 1; extent: 0@ aFont lineSpacing ; ascent: aFont ascent; descent: aFont descent.
-	
-	^aLine! !
-
-!BidiLine class methodsFor: 'instance creation' stamp: 'DF 4/9/2023 19:19:41'!
+!BidiLine class methodsFor: 'instance creation' stamp: 'DF 4/15/2023 13:57:28'!
 emptyAt: anIndex
 
-	| aFont aLine |
-	
-	aFont := FontFamily defaultFamilyAndPointSize.
+	| aLine |
 	
 	aLine := self new.
 	 
-	aLine beginIndex: anIndex ; endIndex: anIndex; extent: 0@ aFont lineSpacing ; ascent: aFont ascent; descent: aFont descent.
+	aLine emptyAt: anIndex.
 	
 	^aLine! !
 
@@ -1009,7 +1063,7 @@ writingDirectionAt: anIndex
 	
 	^ paragraphs at: i :: writingDirection! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 15:39:35'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/15/2023 19:36:28'!
 above: aText at: anIndex
 
 	| pc p c i |
@@ -1018,6 +1072,8 @@ above: aText at: anIndex
 	
 	p := pc at:1.
 	c := pc at:2.
+	
+	self assert: p <= paragraphs size.
 	
 	i := paragraphs at:p :: above: aText at: anIndex - c.
 	
@@ -1094,13 +1150,11 @@ paragraphAt: charIndex
 	^ { i . c . y }
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/13/2023 14:59:07'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/15/2023 19:19:02'!
 point: aText at: absoluteIndex
 
 	| i c y icy |
 
-	paragraphs isEmpty ifTrue:[^0@0 extent:0@0].
-	
 	icy := self paragraphAt: absoluteIndex.
 	
 	i := icy at:1.
@@ -1110,7 +1164,9 @@ point: aText at: absoluteIndex
 	y := icy at:3.
 
 	i = (paragraphs size + 1) "point is past the last character in the text"
-		ifTrue:[ ^ (paragraphs last lastPoint: aText base: c) translatedBy: (0@y) ].
+		ifTrue:[ | p | 
+			p := paragraphs last.
+			^ (p lastPoint: aText base: c - p count) translatedBy: (0@y) ].
 
 	self assert: i <= paragraphs size.
 	
@@ -1152,23 +1208,25 @@ rectangles: aText from: bIndex to: eIndex
 			
 	! !
 
-!BidiPage methodsFor: 'building' stamp: 'DF 4/12/2023 12:45:17'!
+!BidiPage methodsFor: 'building' stamp: 'DF 4/15/2023 14:36:09'!
 rebuild: aText
 
-	| i aParagraph dir |
+	| aParagraph dir token |
 	
 	dir := #ltr.
 	
 	paragraphs removeAll.
 	
-	i := 0.
+	token := BidiToken new tag:#word ; begin:1; end:1; yourself.
 	
-	[ i < aText size ]
+	token := BidiToken nextIn: aText after: token direction: dir.
+	
+	[ token tag ~= #eot ]
 		whileTrue:[
-			aParagraph := BidiParagraph new width: width; writingDirection: dir; rebuild: aText from: i; yourself.
+			aParagraph := BidiParagraph new width: width; writingDirection: dir.
+			token := aParagraph rebuild: aText next: token.
 			paragraphs add: aParagraph.
-			dir := aParagraph writingDirection.
-			i := i + aParagraph count ].
+			dir := aParagraph writingDirection ].
 		
 		! !
 
@@ -1230,54 +1288,62 @@ determinePrimaryDirection: aText at: anIndex
 	direction := d = #rtl ifTrue:[-1] ifFalse:[d = #ltr ifTrue:[1] ifFalse:[direction] ].
 ! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 4/11/2023 21:50:14'!
-rebuild: aText from: anIndex
+!BidiParagraph methodsFor: 'building' stamp: 'DF 4/15/2023 16:43:38'!
+rebuild: aText next: aToken
 
-	| line i |
-	
-	self determinePrimaryDirection: aText at: anIndex.
+	| line token base |
+
+	"A pargraph contains all characters until the first non line separator after
+	two or more line separators."
 	
 	lines removeAll.
 	
 	height := 0.
+
+	self determinePrimaryDirection: aText at: aToken begin.
+	
+	"As the paragraph's direction may change, we must rescan the current token
+	to ensure it matches the current paragraph's direction."
+
+	token := BidiToken nextIn: aText after:(BidiToken new tag:#word ; begin: aToken begin ; end: aToken begin; yourself) direction: direction.
+	
+	base := token begin - 1.
 		
-	" A pargraph contains all characters until the first non line separator after
-	two or more line separators."
-	
-	i := anIndex + 1.
-	
-	[ i <= aText size and: [aText at:i :: isLineSeparator not ] ]
+	[ token tag ~= #eot and: [ token tag ~= #nl ] ]
 		whileTrue: [
-			line := BidiLine new rebuild: aText base: anIndex index: i - anIndex width: width ; yourself.
+			line := BidiLine new.
+			token := line rebuild: aText base: base next: token direction: direction width: width. 
 			lines add: line.
-			height := height + line height.
-			self assert: (i > aText size or: [aText at:i :: isLineSeparator] or: [anIndex + line endIndex > i]).
-			i := line endIndex + anIndex.
-			i <= aText size and: [aText at: i :: isLineSeparator ] :: 
-				ifTrue:[ i := i + 1 ]			].
+			token tag :: = #nl 	
+				ifTrue:[ 
+					token := BidiToken nextIn: aText after: token direction: direction ]	.
+			self assert: (token tag = #eot or: [token tag = #nl] or:[token end > lines last endIndex ]). 		].
 	
 	" We have seen two line separators in a row. Add all the other lines separators. "
 	
-	[ i <= aText size and: [aText at:i :: isLineSeparator ] ]
+	[ token tag = #nl ]
 		whileTrue:[
-			line := BidiLine emptyAt: i - anIndex.
+			line := BidiLine emptyAt: token begin - base.
 			lines add: line.
-			height := height + line height.
-			i := i + 1 ].
+			token := BidiToken nextIn: aText after: token direction: direction			 ].
 		
-	aText isEmpty 	ifTrue:[	
-		line := BidiLine emptyAt: i - anIndex.
-		lines add: line.
-		height := height + line height		 ].
+	( token tag = #eot )
+		ifTrue:[
+			line := BidiLine emptyAt: token begin - base.
+			lines add: line			].
+	
+	height := lines inject:0 into:[:acc : each | acc + each height].
+	
+	^token
 	! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:38:07'!
 beginIndex
 	^lines first beginIndex! !
 
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/11/2023 22:35:03'!
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/15/2023 19:00:42'!
 count
-	^self endIndex - self beginIndex + 1! !
+	^self endIndex - self beginIndex ! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:38:13'!
 endIndex
@@ -1371,14 +1437,14 @@ index: aText at: aPoint
 	^ lines last endIndex.
 	! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 16:58:31'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/15/2023 19:12:44'!
 lastPoint: aText base: baseIndex 
 
 	| x aLine |
 	
 	aLine := lines last.
 	
-	x := aLine xcoord: aText direction: direction base: baseIndex at: aLine endIndex width: width.
+	x := direction = 1 ifTrue:[aLine width] ifFalse:[width - aLine width].
 	
 	^x@(0 - aLine ascent) extent: 0@(aLine ascent + aLine descent)! !
 
@@ -1464,6 +1530,269 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex
 	
 	^rects! !
 
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 4/15/2023 13:58:47'!
+begin
+	^begin! !
+
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 4/15/2023 13:59:27'!
+begin: anIndex
+	begin := anIndex! !
+
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 4/15/2023 13:58:50'!
+end
+	^end! !
+
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 4/15/2023 13:59:33'!
+end: anIndex
+	end := anIndex! !
+
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 4/15/2023 13:58:44'!
+tag
+	^tag! !
+
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 4/15/2023 13:59:19'!
+tag: aSymbol
+	tag := aSymbol! !
+
+!BidiToken class methodsFor: 'testing' stamp: 'DF 4/15/2023 14:03:48'!
+isCompatible: aCodePoint withDirection: dir
+
+	^self isIncompatible: aCodePoint withDirection: dir :: not ! !
+
+!BidiToken class methodsFor: 'testing' stamp: 'DF 4/15/2023 14:03:23'!
+isIncompatible: aCodePoint withDirection: dir
+
+	^(aCodePoint writingDirection = #rtl and:[dir = 1]) or:[aCodePoint writingDirection =#ltr and:[dir = -1] ]! !
+
+!BidiToken class methodsFor: 'instance creation' stamp: 'DF 4/15/2023 14:02:55'!
+nextIn: aString after: aToken direction: dir
+
+	| i tag index |
+	
+	index := aToken end.
+	
+	index > aString size ifTrue:[^BidiToken new tag:#eot ; begin: index ; end: index ; yourself ].
+
+	aString at:index :: isLineSeparator ifTrue:[^BidiToken new tag:#nl ; begin:index ; end: index+1; yourself].
+	
+	aString at:index :: isSeparator ifTrue:[^BidiToken new tag: #ws ; begin:index; end: index+1; yourself].
+
+	tag := self isIncompatible: (aString at:index) withDirection: dir :: ifTrue:[ #contra ] ifFalse:[ #word ].
+	
+	i := index.
+	
+	i := i + 1.
+	
+	[i <= aString size and:[aString at:i :: isSeparator not] ] whileTrue:[i := i + 1].
+	
+	^BidiToken new tag: tag ; begin: index ; end: i ; yourself.
+	! !
+
+!BidiZone methodsFor: 'building' stamp: 'DF 4/15/2023 13:56:12'!
+emptyAt: anIndex
+
+	| aFont |
+	
+	aFont := FontFamily defaultFamilyAndPointSize.
+	
+	beginIndex := anIndex.
+	endIndex := anIndex.
+	extent := 0@ aFont lineSpacing.
+	ascent := aFont ascent.
+	descent := aFont descent.
+! !
+
+!BidiZone methodsFor: 'building' stamp: 'DF 4/14/2023 18:52:25'!
+proceed: text at: aToken direction: dir
+
+	^self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'building' stamp: 'DF 4/15/2023 16:43:57'!
+rebuild: aText base: baseIndex next: aToken direction: dir width: width 
+
+	"Calculate the extent of the zone that begins at aToken begin, and answer the token for what comes
+	after (one character past) the zone. "
+		
+	| w h ex m token  |
+
+	extent := 0@0.
+	ascent := 0.
+	descent := 0.
+	beginIndex := aToken begin - baseIndex.
+	endIndex := beginIndex.
+	
+	aToken tag = #eot ifTrue:[^aToken].
+
+	token := aToken.
+					
+	m := aText metricsFrom: token begin to: token end.
+	ex := m at:1.
+	w := 0.
+	h := ex y.
+		
+	[w + ex x <= width and:[ self proceed: aText at: token direction: dir ] ] 
+		whileTrue:[
+			w := w + ex x.
+			h := h max: ex y.			
+			ascent := ascent max: (m at: 2).
+			descent := descent max: (m at: 3).
+			endIndex := token end - baseIndex	.
+
+			token := BidiToken nextIn: aText after: token direction: dir.
+			m := aText metricsFrom: token begin to: token end.
+			ex := m at:1	].
+	
+	extent := w@h.
+	
+	^token.! !
+
+!BidiZone methodsFor: 'drawing' stamp: 'DF 4/15/2023 16:16:21'!
+draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
+
+	| x y b e j font color r |
+	
+	r := direction = 1 ifTrue:[aPoint - (0@extent y) extent: extent] ifFalse:[aPoint - extent extent: extent].
+	
+	x := aPoint x.
+
+	y := aPoint y.
+	
+	aCanvas frameRectangle: r borderWidth:1 color: Color green.
+	
+	b := baseIndex + beginIndex.
+	
+	[ b < (baseIndex + endIndex) ] whileTrue:[
+		
+		j := aText runLengthFor: b.
+		font := aText fontAt: b default: nil.
+		color := aText colorAt: b :: ifNil:[Color black].
+		e := b+j-1 min: baseIndex + endIndex - 1.
+		aCanvas drawString: aText asString from: b to: e atBaseline: x@y font: font color: color direction: direction.
+		x := x + ((font widthOfString: aText from: b to: e) * direction).
+		b := e+1 ]! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:00:02'!
+ascent
+	^ascent! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 14:36:48'!
+beginIndex
+	^beginIndex! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:00:06'!
+descent
+	^descent! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 14:36:52'!
+endIndex
+	^endIndex! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:57:23'!
+extent
+	^extent! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:00:32'!
+height
+	^extent y! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 4/14/2023 19:10:55'!
+width
+	^extent x! !
+
+!BidiZone methodsFor: 'translating' stamp: 'DF 4/15/2023 18:37:50'!
+index: aText direction: direction width: width at: x
+	
+	" answer the index of the code point located at x coordinate x. "
+	
+	| beginx i font |
+	
+	beginx := width.
+	
+	i := beginIndex.
+	
+	[ i < endIndex and:[ beginx * direction < (x * direction) ] ] 
+		whileTrue:[
+			font := aText fontAt: i default:nil.
+			beginx := beginx + ((font widthOf: (aText at:i)) * direction). 
+			i := i + 1 ].
+		
+	^i
+		! !
+
+!BidiZone methodsFor: 'translating' stamp: 'DF 4/15/2023 21:37:25'!
+xcoord: aText direction: direction base: baseIndex at: index width: x
+
+	" answer the x coordinate of the code point whose index is index. "	
+	
+	| ex m |
+	
+	m := aText metricsFrom: baseIndex + beginIndex to: baseIndex + index.
+	ex := m at:1.
+	^x + (ex x * direction)
+	"direction = 1 ifTrue:[ ^x + ex x] ifFalse:[^extent x + x - ex x].	"
+		! !
+
+!BidiZone class methodsFor: 'instance creation' stamp: 'DF 4/15/2023 13:56:52'!
+emptyAt: anIndex
+
+	| aZone |
+	
+	aZone := BidiNativeZone new. 
+	
+	aZone emptyAt: anIndex.
+	
+	^aZone
+! !
+
+!BidiZone class methodsFor: 'instance creation' stamp: 'DF 4/15/2023 14:17:42'!
+from: aText token: aToken direction: dir
+
+	aToken tag :: = #eot ifTrue:[^BidiNativeZone new].
+	
+	BidiToken isCompatible: (aText at:(aToken begin)) withDirection: dir :: 
+		ifTrue:[^BidiNativeZone new] ifFalse:[^BidiContraZone new].! !
+
+!BidiContraZone methodsFor: 'building' stamp: 'DF 4/15/2023 15:14:42'!
+proceed: text at: aToken direction: dir
+
+	| i |
+	
+	aToken tag = #eot ifTrue:[^false].
+	
+	aToken tag = #nl ifTrue:[^false].
+	
+	" A contra zone stops at a neutral character only if the first non neutral character that follows is 
+	in the opposite direction. "
+	
+	i := aToken begin.
+
+	[i <= text size and:[text at:i :: writingDirection = #neutral ] ] whileTrue:[i := i + 1].
+	
+	i > text size ifTrue:[^true].
+	
+	^ BidiToken isCompatible: (text at: i) withDirection: dir * -1 
+	
+	! !
+
+!BidiContraZone methodsFor: 'drawing' stamp: 'DF 4/15/2023 21:32:23'!
+draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
+
+	^super draw: aText from: baseIndex on: aCanvas at: aPoint + (extent x * direction@0) direction: direction * -1! !
+
+!BidiContraZone methodsFor: 'translating' stamp: 'DF 4/15/2023 21:40:58'!
+xcoord: aText direction: direction base: baseIndex at: index width: width
+
+	| x |
+	
+	x := super xcoord: aText direction: direction * -1 base: baseIndex at: index width: width.
+	
+	^x + (direction * extent x)! !
+
+!BidiNativeZone methodsFor: 'building' stamp: 'DF 4/15/2023 14:12:47'!
+proceed: text at: aToken direction: dir
+
+	^ aToken tag ~= #eot and: [ aToken tag ~= #nl ] and: [ aToken tag ~= #contra ]! !
+
 !UnicodeCodePoint methodsFor: '*BidiText' stamp: 'DF 4/11/2023 11:50:25'!
 writingDirection
 
@@ -1495,7 +1824,7 @@ displayOnBitBltCanvasEngine: engine from: startIndex to: stopIndex at: p font: a
 		color: color
 		direction: direction.! !
 
-!Text methodsFor: '*BidiText' stamp: 'DF 4/7/2023 12:32:15'!
+!Text methodsFor: '*BidiText' stamp: 'DF 4/15/2023 15:49:23'!
 metricsFrom: begin to: end
 
 	| b n font w h a d |
@@ -1508,9 +1837,9 @@ metricsFrom: begin to: end
 	d := 0. "descent"
 	b := begin.
 	
-	[b <= end] whileTrue:[
+	[b < end] whileTrue:[
 	
-		n := end - b + 1 min: (self runLengthFor: b).
+		n := end - b min: (self runLengthFor: b).
 	
 		font := self fontAt: b default: nil.
 	
@@ -1523,7 +1852,7 @@ metricsFrom: begin to: end
 	
 	^{ w@h . a . d }! !
 
-!Text class methodsFor: '*BidiText' stamp: 'DF 4/7/2023 12:43:38'!
+!Text class methodsFor: '*BidiText' stamp: 'DF 4/14/2023 13:55:56'!
 testExtentFrom
 
 	"self testExtentFrom"
@@ -1532,7 +1861,7 @@ testExtentFrom
 	
 	aText := 'Hello' asText.
 	
-	m := aText metricsFrom:1 to:aText size.
+	m := aText metricsFrom:1 to:aText size + 1.
 	actual := m at:1.
 	expected := (aText fontAt: 1 default:nil) widthOfString: aText.
 	
