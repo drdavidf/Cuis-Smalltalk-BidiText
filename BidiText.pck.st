@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 17 April 2023 at 6:48:46 pm'!
+'From Cuis 6.0 [latest update: #5722] on 17 April 2023 at 6:55:01 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 70!
+!provides: 'BidiText' 1 71!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -303,7 +303,7 @@ handlesMouseDown: aMouseButtonEvent
 handlesMouseOver: aMorphicEvent
 	^self visible ! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/12/2023 09:45:47'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/17/2023 18:53:54'!
 keyStroke: aKeyboardEvent
 
 	| dir char |
@@ -369,7 +369,7 @@ keyStroke: aKeyboardEvent
 
 	aKeyboardEvent controlKeyPressed and:[char = $Z] :: ifTrue:[^self redo].
 
-	self addCodePoint: char.
+	editor insert: char.
 			
 	page rebuild: text.
 	self redrawNeeded.
@@ -1002,16 +1002,15 @@ index: aText base: anInteger direction: direction width: width at: xCoord
 		
 ! !
 
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/17/2023 18:47:34'!
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/17/2023 18:52:08'!
 rectangles: aText base: baseIndex from: bIndex to: eIndex at: y direction: direction width: width
 
-	| x rs |
+	| x |
 	
 	x := direction = 1 ifTrue:[0] ifFalse:[width].
 
-	rs := zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x@y) direction: direction). x := x + (each width * direction). acc ].
-	
-	^rs! !
+	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x@y) direction: direction). x := x + (each width * direction). acc ].
+	! !
 
 !BidiLine methodsFor: 'translating' stamp: 'DF 4/17/2023 16:53:28'!
 xcoord: aText direction: direction base: baseIndex at: index width: width
