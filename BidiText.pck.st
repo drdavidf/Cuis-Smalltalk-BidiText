@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 17 April 2023 at 9:37:55 am'!
+'From Cuis 6.0 [latest update: #5722] on 17 April 2023 at 6:48:46 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 68!
+!provides: 'BidiText' 1 70!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -418,6 +418,24 @@ mouseMove: aMouseMoveEvent localPosition: localEventPosition
 	aMouseMoveEvent mouseButton1Pressed ifTrue:[
 		editor moveMarkTo: (page index: text at: localEventPosition)	. self redrawNeeded 	]! !
 
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/17/2023 18:39:06'!
+debugRects
+
+	| b e rects |
+	
+	self halt.
+	
+	b := editor point min: editor mark.
+	
+	e := editor point max: editor mark.
+	
+	b = e ifTrue:[^self].
+	
+	rects := page rectangles: text from: b  to: e.
+
+
+! !
+
 !BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/11/2023 18:23:09'!
 drawCursorOn: aCanvas
 
@@ -427,12 +445,12 @@ drawCursorOn: aCanvas
 		
 	aCanvas line: aRect origin to: aRect corner width: 2 color: Color black.! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/15/2023 18:12:00'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/17/2023 18:47:04'!
 drawOn: aCanvas
 
 	super drawOn: aCanvas.
 
-	"self drawSelectionOn: aCanvas."
+	self drawSelectionOn: aCanvas.
 	
 	page draw: text on: aCanvas. 
 	
@@ -950,7 +968,7 @@ rebuild: aText base: baseIndex next: aToken direction: dir width: width
 	^next
 			 ! !
 
-!BidiLine methodsFor: 'drawing' stamp: 'DF 4/14/2023 21:09:47'!
+!BidiLine methodsFor: 'drawing' stamp: 'DF 4/17/2023 18:47:29'!
 draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width 
 
 	| x |
@@ -961,28 +979,10 @@ draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width
 		each draw: aText from: baseIndex on: aCanvas at: (x@y) direction: direction.
 		x := x + (each width * direction) ].
 		
-"
-	| x b e j font color r |
-	
-	r := direction = 1 ifTrue:[0@(y - extent y) extent: extent] ifFalse:[width - extent x@(y - extent y) extent: extent].
-	aCanvas frameRectangle: r borderWidth:1 color: Color blue.
-	
-	x := direction = 1 ifTrue:[0] ifFalse:[width].
+! !
 
-	b := baseIndex + beginIndex.
-	
-	[ b < (baseIndex + endIndex) ] whileTrue:[
-		
-		j := aText runLengthFor: b.
-		font := aText fontAt: b default: nil.
-		color := aText colorAt: b :: ifNil:[Color black].
-		e := b+j-1 min: baseIndex + endIndex - 1.
-		aCanvas drawString: aText asString from: b to: e atBaseline: x@y font: font color: color direction: direction.
-		x := x + ((font widthOfString: aText from: b to: e) * direction).
-		b := e+1 ]"! !
-
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/15/2023 18:46:02'!
-index: aText direction: direction width: width at: xCoord
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/17/2023 18:27:28'!
+index: aText base: anInteger direction: direction width: width at: xCoord
 
 	| x i |
 	
@@ -992,35 +992,28 @@ index: aText direction: direction width: width at: xCoord
 	 
 	i := 1.
 	
-	[i <= zones size and: [ (xCoord * direction) > ((zones at:i :: width) * direction + x) ] ] 
+	[i <= zones size and: [ (xCoord * direction) > (((zones at:i :: width) * direction + x) * direction) ] ] 
 		whileTrue:[ x := x + ((zones at:i :: width) * direction). i := i + 1].
 
 	i <= zones size 	
-		ifTrue:[^ zones at:i :: index: aText direction:direction width: x at: xCoord].
+		ifTrue:[^ zones at:i :: index: aText base: anInteger direction:direction width: x at: xCoord].
 		
-	^ zones last endIndex.
+	^ zones last endIndex + anInteger.
 		
 ! !
 
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/12/2023 12:09:08'!
-rectangle: aText base: baseIndex from: bIndex to: eIndex at: y direction: direction width: width
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/17/2023 18:47:34'!
+rectangles: aText base: baseIndex from: bIndex to: eIndex at: y direction: direction width: width
 
-	| ix jx p q |
+	| x rs |
 	
-	self assert: (beginIndex <= bIndex and: [bIndex <= endIndex]).
-	self assert: (beginIndex <= eIndex and: [eIndex <= endIndex]).
+	x := direction = 1 ifTrue:[0] ifFalse:[width].
+
+	rs := zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x@y) direction: direction). x := x + (each width * direction). acc ].
 	
-	ix := self xcoord: aText direction: direction base: baseIndex at: bIndex width: width.
+	^rs! !
 
-	jx := self xcoord: aText direction: direction base: baseIndex at: eIndex width: width.
-		
-	p := direction = 1 ifTrue:[ix] ifFalse:[jx].
-	q := direction = 1 ifTrue:[jx] ifFalse:[ix].
-		
-	^p@(y + self height - ascent) extent: (q-p)@(ascent + descent)	.
-! !
-
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/16/2023 12:31:41'!
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/17/2023 16:53:28'!
 xcoord: aText direction: direction base: baseIndex at: index width: width
 
 	" answer the x coordinate of the code point whose index is index. "	
@@ -1036,7 +1029,7 @@ xcoord: aText direction: direction base: baseIndex at: index width: width
 	i = (zones size + 1) 
 		ifTrue:[^x].
 	
-	^ zones at:i :: xcoord: aText direction: direction base: baseIndex at: index width: x
+	^ zones at:i :: xcoord: aText direction: direction base: baseIndex at: index x: x
 
 		! !
 
@@ -1119,11 +1112,11 @@ below: aText at: anIndex
 	^ c + (paragraphs at: p+1 :: beginIndex)
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 10:22:09'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/17/2023 18:21:04'!
 index: aText at: aPoint
 
 	| y i c |
-	
+
 	self assert: aPoint y >= 0.
 	
 	y := 0.
@@ -1133,10 +1126,10 @@ index: aText at: aPoint
 	i := 1.
 	
 	[i <= paragraphs size and: [aPoint y > ((paragraphs at:i :: height) + y) ] ] 
-		whileTrue:[ y := y + (paragraphs at:i :: height). c := c + (paragraphs at:i :: count) . i := i + 1].
+		whileTrue:[ y := y + (paragraphs at:i :: height). c := c + (paragraphs at:i :: count) - 1 . i := i + 1].
 
 	i <= paragraphs size 	
-		ifTrue:[^ c + (paragraphs at:i :: index: aText at: aPoint - (0@y))].
+		ifTrue:[^ paragraphs at:i :: index: aText base: c at: aPoint - (0@y)].
 		
 	paragraphs isEmpty ifTrue:[^1].
 	
@@ -1441,8 +1434,8 @@ below: aText at: anIndex
 	^ aLineBelow beginIndex + offset min: aLineBelow endIndex.
 	! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/10/2023 16:26:00'!
-index: aText at: aPoint
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/17/2023 18:26:24'!
+index: aText base: anInteger at: aPoint
 
 	| y i |
 	
@@ -1456,7 +1449,7 @@ index: aText at: aPoint
 		whileTrue:[ y := y + (lines at:i :: height). i := i + 1].
 
 	i <= lines size 	
-		ifTrue:[^ lines at:i :: index: aText direction:direction width: width at: aPoint x].
+		ifTrue:[^ lines at:i :: index: aText base: anInteger direction:direction width: width at: aPoint x].
 		
 	lines isEmpty ifTrue:[^1].
 	
@@ -1515,7 +1508,7 @@ point: aText base: baseIndex at: offset
 	
 	^x@(y+aLine height - aLine ascent) extent: 0@(aLine ascent + aLine descent)! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 14:41:19'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/17/2023 16:38:25'!
 rectangles: aText base: baseIndex from: bIndex to: eIndex
 
 	| iy jy i j aLine rects y |
@@ -1532,27 +1525,27 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex
 	y := iy at:2.
 	
 	i = j ifTrue:[ 		
-		^{ aLine rectangle: aText base: baseIndex from: bIndex to: eIndex at: y direction: direction width: width} ].
+		^aLine rectangles: aText base: baseIndex from: bIndex to: eIndex at: y direction: direction width: width ].
 	
 	rects := OrderedCollection new.
 
-	rects add:(
-		aLine rectangle: aText base: baseIndex from: bIndex to: aLine endIndex at: y direction: direction width: width).
+	rects addAll:(
+		aLine rectangles: aText base: baseIndex from: bIndex to: aLine endIndex at: y direction: direction width: width).
 	i := i + 1.
 	
 	[i < j] whileTrue:[
 		y := y + aLine height.		
 		aLine := lines at:i.
-		rects add:(
-			aLine rectangle: aText base: baseIndex from: aLine beginIndex to: aLine endIndex at: y direction: direction width: width). 
+		rects addAll:(
+			aLine rectangles: aText base: baseIndex from: aLine beginIndex to: aLine endIndex at: y direction: direction width: width). 
 		i := i + 1 ].
 
 	self assert: i = j.
 	
 	y := y + aLine height.		
 	aLine := lines at:i.	
-	rects add:(
-		aLine rectangle: aText base: baseIndex from: aLine beginIndex to: eIndex at: y direction: direction width: width). 
+	rects addAll:(
+		aLine rectangles: aText base: baseIndex from: aLine beginIndex to: eIndex at: y direction: direction width: width). 
 	
 	^rects! !
 
@@ -1832,8 +1825,8 @@ height
 width
 	^extent x! !
 
-!BidiZone methodsFor: 'translating' stamp: 'DF 4/15/2023 18:37:50'!
-index: aText direction: direction width: width at: x
+!BidiZone methodsFor: 'translating' stamp: 'DF 4/17/2023 18:27:42'!
+index: aText base: anIndex direction: direction width: width at: x
 	
 	" answer the index of the code point located at x coordinate x. "
 	
@@ -1845,15 +1838,36 @@ index: aText direction: direction width: width at: x
 	
 	[ i < endIndex and:[ beginx * direction < (x * direction) ] ] 
 		whileTrue:[
-			font := aText fontAt: i default:nil.
-			beginx := beginx + ((font widthOf: (aText at:i)) * direction). 
+			font := aText fontAt: anIndex + i default:nil.
+			beginx := beginx + ((font widthOf: (aText at: anIndex + i)) * direction). 
 			i := i + 1 ].
 		
-	^i
+	^i + anIndex
 		! !
 
-!BidiZone methodsFor: 'translating' stamp: 'DF 4/15/2023 21:37:25'!
-xcoord: aText direction: direction base: baseIndex at: index width: x
+!BidiZone methodsFor: 'translating' stamp: 'DF 4/17/2023 18:45:41'!
+rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint direction: direction 
+
+	| b e ix jx p q |
+	
+	b := bIndex max: beginIndex.
+	e := eIndex min: endIndex.
+	
+	b >= endIndex ifTrue:[^{}].
+	e <= beginIndex ifTrue:[^{}].
+	
+	ix := self xcoord: aText direction: direction base: baseIndex at: b x: aPoint x.
+
+	jx := self xcoord: aText direction: direction base: baseIndex at: e x: aPoint x.
+		
+	p := direction = 1 ifTrue:[ix] ifFalse:[jx].
+	q := direction = 1 ifTrue:[jx] ifFalse:[ix].
+		
+	^{ p@(aPoint y + self height - ascent) extent: (q-p)@(ascent + descent)	 }.
+! !
+
+!BidiZone methodsFor: 'translating' stamp: 'DF 4/17/2023 16:53:09'!
+xcoord: aText direction: direction base: baseIndex at: index x: x
 
 	" answer the x coordinate of the code point whose index is index. "	
 	
@@ -1862,7 +1876,6 @@ xcoord: aText direction: direction base: baseIndex at: index width: x
 	m := aText metricsFrom: baseIndex + beginIndex to: baseIndex + index.
 	ex := m at:1.
 	^x + (ex x * direction)
-	"direction = 1 ifTrue:[ ^x + ex x] ifFalse:[^extent x + x - ex x].	"
 		! !
 
 !BidiZone class methodsFor: 'instance creation' stamp: 'DF 4/15/2023 13:56:52'!
