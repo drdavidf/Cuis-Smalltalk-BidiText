@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 16 April 2023 at 9:03:43 pm'!
+'From Cuis 6.0 [latest update: #5722] on 17 April 2023 at 9:37:55 am'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 67!
+!provides: 'BidiText' 1 68!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -2009,7 +2009,7 @@ testExtentFrom
 	
 	self assert: actual x = expected.! !
 
-!BitBltCanvasEngine methodsFor: '*BidiText' stamp: 'DF 4/4/2023 18:37:34'!
+!BitBltCanvasEngine methodsFor: '*BidiText' stamp: 'DF 4/17/2023 09:30:36'!
 basicDisplayUtf8: aByteArray fromByte: byteStartIndex toByte: byteStopIndex at: aPoint trueTypeFont: aTrueTypeFont direction: direction
 
 	"Answer position to place next glyph"
@@ -2042,10 +2042,10 @@ basicDisplayUtf8: aByteArray fromByte: byteStartIndex toByte: byteStopIndex at: 
 			ifFalse: [
 				deltaXForBaseGlyph := glyph deltaXToCenter.
 				deltaXForDiacriticalMark := 0.0 ]
-			ifTrue: [
+			ifTrue: [ 
 				deltaXForDiacriticalMark := glyph deltaXToCenter.
-				deltaXForDiacriticalMark = 0 ifFalse: [ "Only for those who specify a delta to center."
-					deltaXForDiacriticalMark := deltaXForDiacriticalMark - deltaXForBaseGlyph ].
+				deltaXForDiacriticalMark = 0 ifFalse: [ "Only for those who specify a delta to center."					
+					deltaXForDiacriticalMark := deltaXForDiacriticalMark - (deltaXForBaseGlyph * direction) ].
 				 ].
 		destX := (fdestX + glyph leftOffset + deltaXForDiacriticalMark) roundedHAFZ.
 		destY := aPoint y + ascent + lineGap-1 - glyph topOffset.
