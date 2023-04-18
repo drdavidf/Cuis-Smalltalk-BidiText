@@ -1,12 +1,12 @@
-'From Cuis 6.0 [latest update: #5722] on 17 April 2023 at 6:55:01 pm'!
+'From Cuis 6.0 [latest update: #5722] on 18 April 2023 at 10:02:03 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 71!
+!provides: 'BidiText' 1 72!
 SystemOrganization addCategory: 'BidiText'!
 
 
 !classDefinition: #BidiTextMorph category: 'BidiText'!
 BoxedMorph subclass: #BidiTextMorph
-	instanceVariableNames: 'text editor page'
+	instanceVariableNames: 'text editor page yoffset'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -303,7 +303,7 @@ handlesMouseDown: aMouseButtonEvent
 handlesMouseOver: aMorphicEvent
 	^self visible ! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/17/2023 18:53:54'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/18/2023 15:50:17'!
 keyStroke: aKeyboardEvent
 
 	| dir char |
@@ -341,7 +341,7 @@ keyStroke: aKeyboardEvent
 		 ^self ].
 	
 	aKeyboardEvent isBackspace ifTrue:[ 
-		self backspace.
+		editor backspace.
 		page rebuild: text.
 		self redrawNeeded. ^self ].
 
@@ -478,7 +478,7 @@ extentChanged: oldExtent
 	
 	page width: self morphWidth ; rebuild: text ! !
 
-!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 4/11/2023 16:52:38'!
+!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 4/18/2023 15:53:56'!
 initialize
 
 	super initialize.
@@ -493,6 +493,8 @@ initialize
 	
 	page width: 640.
 	
+	yoffset := 0.
+	
 	page rebuild: text.
 	
 	! !
@@ -505,164 +507,6 @@ text: aText
 	editor text: text.
 	
 	page rebuild: text.! !
-
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/12/2023 15:17:14'!
-addCodePoint: aCodePoint
-
-	| dir |
-	
-	dir := page writingDirectionAt: editor point.
-	
-	self compatible: aCodePoint writingDirection with: dir ::
-		ifTrue:[	 | p |
-			p := self advanceOverNeutrals: editor point.
-			p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: dir ] :: 
-				ifTrue: [ 
-					self retypeNeutralsAt: p.
-					editor insert: aCodePoint. ^self ].
-			p <= text size and: [ text at:p :: 		writingDirection = #tltr ] :: 
-				ifTrue:[ 
-					self retypeNeutralsAt: p.				
-					editor insert: aCodePoint. ^self ].
-			editor insert: aCodePoint. ^self].
-
-	aCodePoint writingDirection = #neutral  
-		ifTrue:[	 | p |
-			editor insert: aCodePoint.		
-			p := self advanceOverNeutrals: editor point.
-			
-			"When we type a neutral code point immediately after a contra code point, we face
-			a non deterministic situation, because we do not know if the next code point will be
-			another contra symbol in which case the neutral code point belongs to the contra
-			fragment, or if we type a native symbol then the neutral code point should terminate
-			the contra fragment, and move together with the native code point to the other end
-			of the contra fragment. The solution that we have adopted here is to assume that the neutral 
-			code symbols belong to the contra fragment until a native code symbol is typed. Then we 
-			go back, collect the neutrals that precede the native code, and move them to their correct			position. "
-			
-			p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: dir ] :: 
-				ifTrue: [ editor decrementPointMark 					]. 
-			p <= text size and: [ text at:p :: writingDirection = #tltr ] :: 
-				ifTrue:[ editor decrementPointMark 					]. 
-			 ^self].
-
-	" digits break the left-to-right right-to-left symmetry because they are always typed 
-	left-to-right, even in right-to-left languages."
-	
-	aCodePoint writingDirection = #tltr and: [dir = 1] :: 
-		ifTrue:[
-			editor insert: aCodePoint.		 
-			^self ].
-
-	" The code point is contra to the paragraph's writing direction,
-	but if this is the first non line separator after two line separators
-	then we should use it to determine the writing direction because
-	once the page will be rebuilt it will be the first character in a new paragraph."
-	
-	text size = 0 or:[text size = 1 and:[text at:1 :: isLineSeparator] ] or:[editor point > 2 and:[text at: editor point - 1 :: isLineSeparator ] and: [text at: editor point - 2 :: isLineSeparator ] ] :: ifTrue:[
-		editor insert: aCodePoint.				
-		^self ].
-	
-	" at this point we know that we are typing a contra code point (a code point whose writing direction
-	is contra to the paragraph's writing direction). "
-		
-	editor insert: aCodePoint.		
-	editor decrementPointMark. 
-! !
-
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/10/2023 16:31:02'!
-advanceOverNeutrals: anIndex
-
-	" advance from anIndex as long as you are at a neutral code point "
-	
-	| i |
-	
-	i := anIndex.
-	
-	[i <= text size and:[text at:i :: writingDirection = #neutral ] ] whileTrue:[i := i + 1].
-	
-	^i! !
-
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/12/2023 13:09:53'!
-advanceToNative: anIndex
-
-	" advance from anIndex until you either get to a code point whose writing direction is 
-	the same as the paragraph's writing direction, or to the end of the text"
-	
-	| native i |
-	
-	native := page writingDirectionAt: editor point :: = 1 ifTrue:[#ltr] ifFalse:[#rtl].
-	
-	i := anIndex.
-	
-	[i <= text size and:[text at:i :: writingDirection ~= native ] ] whileTrue:[i := i + 1].
-	
-	^i! !
-
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/12/2023 13:10:02'!
-backToContra: anIndex
-
-	" go back from anIndex until you either get to a code point whose writing direction is contra
-	to the paragraph's writing direction, or to a digit, or you reach the beginning of text. "
-	
-	| contra i c |
-	
-	contra := page writingDirectionAt: editor point :: = 1 ifTrue:[#rtl] ifFalse:[#ltr].
-	
-	i := anIndex.
-	
-	i > 1 ifTrue:[c := text at:i -1 :: writingDirection].
-	
-	[i > 1 and:[c ~= contra ] and:[c ~= #tltr ] ] whileTrue:[
-		i := i - 1.
-		i > 1 ifTrue:[c := text at:i -1 :: writingDirection] ].
-	
-	^i! !
-
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/12/2023 09:48:30'!
-backspace
-
-	| p dir |
-	
-	dir := page writingDirectionAt: editor point.
-	
-	p := self advanceOverNeutrals: editor point.
-	
-	p <= text size and: [ self incompatible: (text at:p :: writingDirection) with: dir ] :: 
-		ifTrue:[editor delete. ^self].
-
-	p <= text size and: [ text at:p :: writingDirection = #tltr and: [ dir = -1 ] ] :: 
-		ifTrue:[editor delete. ^self].
-		
-	editor backspace.! !
-
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/9/2023 13:54:44'!
-compatible: writingDirectionSymbol with: writingDirectionInteger
-
-	^(writingDirectionSymbol = #rtl and:[writingDirectionInteger = -1]) or:[writingDirectionSymbol =#ltr and:[writingDirectionInteger = 1] ]! !
-
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/8/2023 17:24:09'!
-incompatible: writingDirectionSymbol with: writingDirectionInteger
-
-	^(writingDirectionSymbol = #rtl and:[writingDirectionInteger = 1]) or:[writingDirectionSymbol =#ltr and:[writingDirectionInteger = -1] ]! !
-
-!BidiTextMorph methodsFor: 'bidi typing' stamp: 'DF 4/10/2023 16:33:36'!
-retypeNeutralsAt: anIndex
-
-	" remove all the neutral code points from the editor's point up to anIndex. 
-	move to the furthest contra code point that is followed by a native code point
-	and copy them there in reverse." 
-	
-	| p neutrals |
-	
-	p := anIndex.
-	
-	neutrals := text copyFrom: editor point to: p - 1.
-	text replaceFrom: editor point to: p - 1 with: ''.
-	p := self advanceToNative: editor point.
-	p :=  self backToContra: p. 
-	text replaceFrom: p to: p-1 with: neutrals reverse.
-	editor movePointTo: p + neutrals size; moveMarkTo: editor point.! !
 
 !BidiTextMorph methodsFor: 'history' stamp: 'DF 4/11/2023 15:05:50'!
 offerUndoHistory! !
@@ -684,6 +528,30 @@ undo
 	page rebuild: text.
 	
 	self redrawNeeded.! !
+
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 4/18/2023 17:06:20'!
+example
+
+	"self example"
+	
+	| s |
+
+	s := '{א} בראשית ברא אלהים את השמים ואת הארץ: {ב} והארץ היתה תהו ובהו וחשך על פני תהום ורוח אלהים מרחפת על פני המים: {ג} ויאמר אלהים יהי אור ויהי אור: {ד} וירא אלהים את האור כי טוב ויבדל אלהים בין האור ובין החשך: {ה} ויקרא אלהים לאור יום ולחשך קרא לילה ויהי ערב ויהי בקר יום אחד: (פ)
+
+פָּנָאיט איסְטְרָטי (1884–1935) היה סופר, עורך עיתון, עיתונאי ופובליציסט יליד רומניה, שעל אף נדודיו שמר על זיקה משמעותית למכורתו. איסטרטי עסק בעשרות משלחי יד, חי במספר ארצות וכתב בשפות הצרפתית והרומנית. יצירתו הייחודית, שניפצה מוסכמות, זכתה לחשיפה רבה ולתרגומים רבים ואף לעיבודים קולנועיים, ואיסטרטי עצמו זכה לכינוי "מקסים גורקי של הבלקנים". הוא היה פעיל פוליטי פציפיסטי וסוציאליסטי, מארגן שביתות והפגנות ונואם המלהיב המונים.
+
+צריח הכנסייה הגבוה ביותר בעולם שייך לקתדרלת אוּלְם שבגרמניה, וגובהו 161.53 מטרים. הצריח הושלם ב-1890 במסגרת גל התחייה הגותית, שבו שופצו והושלמו קתדרלות רבות בגרמניה, צרפת ואיטליה. הקתדרלה לקחה את תואר הבניין הגבוה בעולם מקתדרלת קלן, שהושלמה ב-1880 וגובהה היה 157 מטרים. בשנת 1908 הפסידה קתדרלת אולם את התואר לבניין סינגר בניו יורק שבארצות הברית (שהחזיק בו רק עד 1909). כנסיית סגרדה פמיליה שבברצלונה, שבנייתה נמשכת בימינו, אמורה להגיע לגובה של 170 מטר עם השלמתה ולעבור את קתדרלת אולם. קתדרלת לינקולן הגיעה לגובה של 160 מטר כבר בתחילת המאה ה-14, אך חלקה הגבוה קרס מאוחר יותר.
+
+שוגרה לחלל לעבר כוכב הלכת צדק הגשושית Juice (בתמונה), שפותחה על ידי סוכנות החלל האירופית, ובה גם מכשיר מחקר של סוכנות החלל הישראלית ומכון ויצמן למדע (ynet)
+
+פיזיקה (מהמילה היוונית φυσικός) היא חקר הטבע, במובן הרחב ביותר. פיזיקאים חוקרים את התנהגות החומר והאנרגיה, ואת השפעתם על היקום הסובב אותנו. תאוריות פיזיקליות מתוארות לרוב על ידי משוואות מתמטיות. לתאוריות מבוססות היטב ניתן להתייחס כאל "חוק פיזיקלי", אך כמו כל תאוריה מדעית, ייתכן שהן תשתנינה כתוצאה מתצפיות חדשות, ניסויים או תאוריות מוכללות יותר.
+
+הופעת מכניקת הקוונטים חייבה את קיומה של תאוריה קוונטית של אלקטרומגנטיות. תאוריה זו, שהושלמה בשנת 1970, ידועה בשם "אלקטרודינמיקה קוונטית" (QED). כאשר האור מקיים אינטראקציה עם חומר כמו באפקט הפוטו-אלקטרי, אופיו הקוונטי של האור בא לידי ביטוי. מתורת הקוונטים אנו למדים שהאנרגיה שאור יכול לתת או לקבל מקוונטטת ליחידות של hf כאשר h הוא קבוע פלאנק ו-f היא התדירות. התיאור המלא והנכון ביותר של האור למיטב ידיעתנו הוא של תורת השדות הקוונטית. אין סתירה בינו לבין אופטיקה גאומטרית, למשל. אופטיקה גאומטרית מתלכדת עם התיאור הקוונטי בגבול של אורכי גל קצרים.
+
+Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَرَبِيّ, ʿarabī [ˈʕarabiː] or [ʕaraˈbij]) (sometimes arguably, the Arabic languages) is a Semitic language spoken primarily across the Arab world.[6] Having emerged in the 1st century, it is named after the Arab people; the term "Arab" was initially used to describe those living in the Arabian Peninsula, as perceived by geographers from ancient Greece.[7]'.
+
+	PluggableScrollPane new scroller: (BidiTextMorph new text:s ; morphExtent:1024@1600); morphExtent: 1064@768 ; openInWorld
+	! !
 
 !ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/11/2023 11:54:01'!
 compose: aUnicodeString
@@ -1766,7 +1634,7 @@ rebuild: aText base: baseIndex next: aToken direction: dir width: width
 	
 	^token.! !
 
-!BidiZone methodsFor: 'drawing' stamp: 'DF 4/16/2023 18:16:02'!
+!BidiZone methodsFor: 'drawing' stamp: 'DF 4/18/2023 15:38:11'!
 draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 	| x y b e j font color r s |
@@ -1788,9 +1656,11 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 		color := aText colorAt: b :: ifNil:[Color black].
 		e := b+j-1 min: baseIndex + endIndex - 1.
 		
+		s := ArabicComposer compose:(aText asString copyFrom: b to: e).
+		
 		s := direction = -1 
-			ifTrue:[BidiParenComposer compose:(aText asString copyFrom: b to: e)] 
-			ifFalse:[aText asString copyFrom: b to: e].
+			ifTrue:[BidiParenComposer compose:s] 
+			ifFalse:[s].
 			
 		aCanvas drawString: s from: 1 to: s size atBaseline: x@y font: font color: color direction: direction.
 		x := x + ((font widthOfString: s from: 1 to: s size) * direction).
