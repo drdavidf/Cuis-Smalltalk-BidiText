@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 18 April 2023 at 10:02:03 pm'!
+'From Cuis 6.0 [latest update: #5722] on 21 April 2023 at 10:32:35 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 72!
+!provides: 'BidiText' 1 74!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -380,11 +380,11 @@ keyboardFocusChange: aBoolean
 
 	"self halt."! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/12/2023 09:42:52'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/21/2023 12:55:22'!
 mouseButton1Down: aMouseButtonEvent localPosition: localEventPosition
 
 	| i |
-	
+
 	i := page index: text at: localEventPosition.
 	
 	editor movePointTo: i; moveMarkTo: i.
@@ -553,33 +553,50 @@ Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَ
 	PluggableScrollPane new scroller: (BidiTextMorph new text:s ; morphExtent:1024@1600); morphExtent: 1064@768 ; openInWorld
 	! !
 
-!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/11/2023 11:54:01'!
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 20:23:16'!
 compose: aUnicodeString
 
-	| output b e |
+	^self compose: aUnicodeString from:1 to: aUnicodeString size
+! !
+
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 22:28:45'!
+compose: aUnicodeString from: bIndex to:eIndex
+
+	| output b e lookAhead lookBehind |
 	
 	b := 1570.
 	e := 1610.
 	
 	output := OrderedCollection new.
 	
-	1 to: 	aUnicodeString size do:[:i |
+	bIndex to: 	eIndex do:[:i |
 		
 		b <= (aUnicodeString at:i) codePoint and:[(aUnicodeString at:i) codePoint <= e] :: 
 			ifTrue:[
+				
+				lookAhead := i + 1.
+				
+				[lookAhead <= aUnicodeString size and:[self isDiacritic: (aUnicodeString at:lookAhead)] ]
+					whileTrue:[lookAhead := lookAhead + 1].
+				
+				lookBehind := i - 1.
+				
+				[lookBehind >=1 and:[self isDiacritic: (aUnicodeString at:lookBehind)] ]
+					whileTrue:[lookBehind := lookBehind - 1].
+							
 				"beginning of word"
-				(i = 1 or: [aUnicodeString at:i -1 :: isSeparator ]) and: [i < aUnicodeString size] and: [ aUnicodeString at: i+1 :: isSeparator not ] :: ifTrue:[ | c | 
+				(i = 1 or: [ self isLetter: (aUnicodeString at:lookBehind) :: not ]) and: [i < aUnicodeString size] and: [ self isLetter: (aUnicodeString at: lookAhead) ] :: ifTrue:[ | c | 
 					c := Beginning at: (aUnicodeString at:i) codePoint - 1569.
 					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
 				
 				"middle of word"
-				i > 1 and: [i < aUnicodeString size] and: [aUnicodeString at:i-1 :: isSeparator not ] and: [aUnicodeString at:i+1 :: isSeparator not] :: ifTrue:[ | c |
+				i > 1 and: [i < aUnicodeString size] and: [self isLetter:(aUnicodeString at:lookBehind) ] and: [self isLetter: (aUnicodeString at:lookAhead) ] :: ifTrue:[ | c |
 					
 					c := Middle at: (aUnicodeString at:i) codePoint - 1569.
 					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
 				
 				"end of word" 
-				i> 1 and:[ aUnicodeString at:i-1 :: isSeparator not] and: [i = aUnicodeString size or: [aUnicodeString at: i + 1 :: isSeparator] ] :: ifTrue:[
+				i> 1 and:[ self isLetter: (aUnicodeString at:lookBehind) ] and: [i = aUnicodeString size or: [ self isLetter: (aUnicodeString at: lookAhead) :: not ] ] :: ifTrue:[
 					| c |
 					
 					c := End at: (aUnicodeString at:i) codePoint - 1569.
@@ -588,7 +605,7 @@ compose: aUnicodeString
 				
 				"isolated"
 				
-				(i = 1 or: [aUnicodeString at: i - 1 :: isSeparator ]) and: [i = aUnicodeString size or: [aUnicodeString at: i+1 :: isSeparator ] ] :: ifTrue:[
+				(i = 1 or: [ self isLetter: (aUnicodeString at: lookBehind) :: not ]) and: [i = aUnicodeString size or: [ self isLetter: (aUnicodeString at: lookAhead) :: not ] ] :: ifTrue:[
 					| c |
 					
 					c := Isolated at: (aUnicodeString at:i) codePoint - 1569.
@@ -611,6 +628,16 @@ initialize
 	Beginning := #(nil nil nil nil nil nil 4 nil 10 14 18 22 26 nil nil nil nil 38 42 46 50 54 58 62 66 nil nil nil nil nil nil 70 74 78 82 86 90 94 nil nil 102).
 	
 	Middle := #(nil nil nil nil nil nil 5 nil 11 15 19 23 27 nil nil nil nil 39 43 47 51 55 59 63 67 nil nil nil nil nil nil 71 75 79 83 87 91 95 nil nil 103).! !
+
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 20:35:57'!
+isDiacritic: aUnicodeCodePoint
+
+	^ 0x064B <= aUnicodeCodePoint codePoint and: [aUnicodeCodePoint codePoint <= 0x065F]! !
+
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 21:55:08'!
+isLetter: aUnicodeCodePoint
+
+	^ 0x0627 <= aUnicodeCodePoint codePoint and: [aUnicodeCodePoint codePoint <= 0x064A]! !
 
 !BidiEditor methodsFor: 'initialization' stamp: 'DF 4/11/2023 13:55:57'!
 initialize
@@ -979,7 +1006,7 @@ below: aText at: anIndex
 	^ c + (paragraphs at: p+1 :: beginIndex)
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/17/2023 18:21:04'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/21/2023 12:55:09'!
 index: aText at: aPoint
 
 	| y i c |
@@ -993,7 +1020,7 @@ index: aText at: aPoint
 	i := 1.
 	
 	[i <= paragraphs size and: [aPoint y > ((paragraphs at:i :: height) + y) ] ] 
-		whileTrue:[ y := y + (paragraphs at:i :: height). c := c + (paragraphs at:i :: count) - 1 . i := i + 1].
+		whileTrue:[ y := y + (paragraphs at:i :: height). c := c + (paragraphs at:i :: count) . i := i + 1].
 
 	i <= paragraphs size 	
 		ifTrue:[^ paragraphs at:i :: index: aText base: c at: aPoint - (0@y)].
@@ -1020,7 +1047,7 @@ paragraphAt: charIndex
 	^ { i . c . y }
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/16/2023 12:02:44'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/21/2023 12:52:10'!
 point: aText at: absoluteIndex
 
 	| i c y icy |
@@ -1634,7 +1661,7 @@ rebuild: aText base: baseIndex next: aToken direction: dir width: width
 	
 	^token.! !
 
-!BidiZone methodsFor: 'drawing' stamp: 'DF 4/18/2023 15:38:11'!
+!BidiZone methodsFor: 'drawing' stamp: 'DF 4/21/2023 13:20:02'!
 draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 	| x y b e j font color r s |
@@ -1656,7 +1683,7 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 		color := aText colorAt: b :: ifNil:[Color black].
 		e := b+j-1 min: baseIndex + endIndex - 1.
 		
-		s := ArabicComposer compose:(aText asString copyFrom: b to: e).
+		s := ArabicComposer compose:aText asString from: b to: e.
 		
 		s := direction = -1 
 			ifTrue:[BidiParenComposer compose:s] 
@@ -1842,10 +1869,10 @@ displayOnBitBltCanvasEngine: engine from: startIndex to: stopIndex at: p font: a
 		color: color
 		direction: direction.! !
 
-!Text methodsFor: '*BidiText' stamp: 'DF 4/15/2023 15:49:23'!
+!Text methodsFor: '*BidiText' stamp: 'DF 4/21/2023 13:15:10'!
 metricsFrom: begin to: end
 
-	| b n font w h a d |
+	| b n font w h a d s |
 	
 	begin > self size ifTrue:[^{ 0@0 . 0 . 0 } ].
 	
@@ -1864,7 +1891,10 @@ metricsFrom: begin to: end
 		h := h max: font lineSpacing.
 		a := a max: font ascent.
 		d := d max: font descent. 	
-		w := w + (font widthOfString: string from: b to: b+n-1).
+		
+		s := ArabicComposer compose: string from: b to: b+n-1.
+		
+		w := w + (font widthOfString: s).
 		
 		b := b+n ].
 	
