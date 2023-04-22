@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 21 April 2023 at 10:32:35 pm'!
+'From Cuis 6.0 [latest update: #5722] on 22 April 2023 at 9:22:57 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 74!
+!provides: 'BidiText' 1 75!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -34,6 +34,16 @@ Object subclass: #BidiEditor
 BidiEditor class
 	instanceVariableNames: ''!
 
+!classDefinition: #BidiFork category: 'BidiText'!
+Object subclass: #BidiFork
+	instanceVariableNames: 'left right parent weight count height'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'BidiFork class' category: 'BidiText'!
+BidiFork class
+	instanceVariableNames: ''!
+
 !classDefinition: #BidiLine category: 'BidiText'!
 Object subclass: #BidiLine
 	instanceVariableNames: 'beginIndex endIndex extent ascent descent zones'
@@ -56,7 +66,7 @@ BidiPage class
 
 !classDefinition: #BidiParagraph category: 'BidiText'!
 Object subclass: #BidiParagraph
-	instanceVariableNames: 'direction lines width height'
+	instanceVariableNames: 'direction lines width height parent'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -445,14 +455,14 @@ drawCursorOn: aCanvas
 		
 	aCanvas line: aRect origin to: aRect corner width: 2 color: Color black.! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/17/2023 18:47:04'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/22/2023 20:16:03'!
 drawOn: aCanvas
 
 	super drawOn: aCanvas.
 
 	self drawSelectionOn: aCanvas.
 	
-	page draw: text on: aCanvas. 
+	page draw: text on: aCanvas clip: self topLeftInOwner y @ owner morphExtent y.
 	
 	self drawCursorOn: aCanvas.
 ! !
@@ -770,6 +780,57 @@ undo
 	p := history peek undoOn: self.
 	
 	self movePointTo: p; moveMarkTo: p.! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:16:30'!
+count
+	^count! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:18:13'!
+height
+	^height! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:17:57'!
+left: aNode right: anotherNode
+
+	left := aNode.
+	right := anotherNode.
+	
+	left parent: self.
+	right parent: self.
+	
+	weight := left count.
+	count := left count + right count.
+	height := left height + right height.! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:15:26'!
+parent: aNode
+
+	parent := aNode
+	! !
+
+!BidiFork class methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:14:40'!
+build: anOrderedCollection from: bIndex to: eIndex
+
+	| m x y |
+	
+	self assert: bIndex >=1.
+	self assert: bIndex <= eIndex.
+	self assert: eIndex <= (anOrderedCollection size + 1).
+	
+	eIndex == bIndex ifTrue:[^nil].
+	
+	eIndex == (bIndex + 1) ifTrue:[^anOrderedCollection at: bIndex].
+	
+	m := (bIndex // 2) + (eIndex // 2) + (( (bIndex mod:2)  + (eIndex mod:2) ) // 2).
+	
+	self assert: bIndex < m.
+	self assert: eIndex > m.
+	
+	x := self build: anOrderedCollection from: bIndex to: m.
+	y := self build: anOrderedCollection from:m to: eIndex.
+	
+	^BidiFork new left: x right: y ; yourself
+	! !
 
 !BidiLine methodsFor: 'accessing' stamp: 'DF 4/7/2023 12:30:08'!
 ascent
@@ -1130,8 +1191,8 @@ initialize
 	
 	width := 640.! !
 
-!BidiPage methodsFor: 'drawing' stamp: 'DF 4/11/2023 21:36:47'!
-draw: aText on: aCanvas
+!BidiPage methodsFor: 'drawing' stamp: 'DF 4/22/2023 20:15:37'!
+draw: aText on: aCanvas clip: yh
 
 	| i y |
 	
@@ -1141,15 +1202,19 @@ draw: aText on: aCanvas
 	i := 0.
 	
 	paragraphs do:[:each |
-		each draw: aText from: i on: aCanvas at: y.
+		each draw: aText from: i on: aCanvas at: y clip: yh.
 		y := y + each height.
 		i := i + each count ].
 ! !
 
-!BidiParagraph methodsFor: 'drawing' stamp: 'DF 4/11/2023 17:31:21'!
-draw: aText from: baseIndex on: aCanvas at: y0
+!BidiParagraph methodsFor: 'drawing' stamp: 'DF 4/22/2023 21:22:24'!
+draw: aText from: baseIndex on: aCanvas at: y0 clip: yh 
 
 	| y |
+
+	y0 + yh x + height < 0 ifTrue:[^self].
+
+	y0 + yh x > yh y ifTrue:[^self].
 	
 	lines isEmpty ifTrue:[^self].
 	
@@ -1183,6 +1248,10 @@ determinePrimaryDirection: aText at: anIndex
 	
 	direction := d = #rtl ifTrue:[-1] ifFalse:[d = #ltr ifTrue:[1] ifFalse:[direction] ].
 ! !
+
+!BidiParagraph methodsFor: 'building' stamp: 'DF 4/22/2023 16:16:04'!
+parent: aNode
+	parent := aNode! !
 
 !BidiParagraph methodsFor: 'building' stamp: 'DF 4/16/2023 12:15:18'!
 rebuild: aText next: aToken
