@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 22 April 2023 at 9:22:57 pm'!
+'From Cuis 6.0 [latest update: #5722] on 27 April 2023 at 10:34:15 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 75!
+!provides: 'BidiText' 1 77!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -46,7 +46,7 @@ BidiFork class
 
 !classDefinition: #BidiLine category: 'BidiText'!
 Object subclass: #BidiLine
-	instanceVariableNames: 'beginIndex endIndex extent ascent descent zones'
+	instanceVariableNames: 'extent ascent descent zones'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -66,7 +66,7 @@ BidiPage class
 
 !classDefinition: #BidiParagraph category: 'BidiText'!
 Object subclass: #BidiParagraph
-	instanceVariableNames: 'direction lines width height parent'
+	instanceVariableNames: 'direction lines width height parent alignment'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -233,6 +233,15 @@ addCutAndPasteMenuSectionTo: aMenu
 	
 	^aMenu! !
 
+!BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/27/2023 19:13:19'!
+addStyleMenuSectionTo: aMenu
+
+	aMenu
+		add: 'Set Alignment...'
+		action: #chooseAlignment
+		icon:	#formatJustifyLeftIcon.
+! !
+
 !BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/11/2023 15:04:04'!
 addUndoMenuSectionTo: aMenu
 
@@ -255,7 +264,24 @@ addUndoMenuSectionTo: aMenu
 		
 	^aMenu.! !
 
-!BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/11/2023 15:04:38'!
+!BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/27/2023 21:44:15'!
+chooseAlignment
+	"This is a user command, and _should_ generate undo"
+
+	| aList reply b e |
+	aList := #(left center right).
+	reply := (SelectionMenu labelList: aList selections: aList) startUpMenu.
+	reply ifNil: [ ^self ].
+	
+	b := editor point min: editor mark.
+	e := editor point max: editor mark.
+	
+	page paragraphsFrom: b to:e do: [:each | each alignment: reply].
+	self redrawNeeded.
+	
+	^ true! !
+
+!BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/27/2023 19:13:39'!
 getMenu
 	| aMenu | 
 	
@@ -275,9 +301,63 @@ getMenu
 
 	self addCutAndPasteMenuSectionTo: aMenu.
 	aMenu addLine.
+
+	self addStyleMenuSectionTo: aMenu.
 	
 	^aMenu
 
+! !
+
+!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 4/27/2023 22:26:18'!
+moveDown: aKeyboardEvent direction: dir
+
+	| p r0 r |
+
+	p := page below: text at: editor point.
+	p ifNotNil: [ 
+		r0 := page point: text at: editor point.
+		editor movePointTo: p.
+		r := page point: text at: p.
+		r corner y > (owner morphExtent y - self topLeftInOwner y) ifTrue:[ owner scrollBy: 0 @ r0 origin y - r origin y ].
+		aKeyboardEvent shiftPressed 
+			ifFalse:[	editor moveMarkTo: editor point]. 
+		self redrawNeeded ].
+	 ^self.
+! !
+
+!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 4/27/2023 21:52:34'!
+moveLeft: aKeyboardEvent direction: dir
+
+		editor movePointTo: editor point - dir. 
+		aKeyboardEvent shiftPressed 
+			ifFalse:[	editor moveMarkTo: editor point]. 
+		self redrawNeeded. ^self
+! !
+
+!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 4/27/2023 21:53:04'!
+moveRight: aKeyboardEvent direction: dir
+
+	editor movePointTo: editor point + dir. 
+	aKeyboardEvent shiftPressed
+		 ifFalse:[	editor moveMarkTo: editor point]. 
+	self redrawNeeded. ^self! !
+
+!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 4/27/2023 22:29:42'!
+moveUp: aKeyboardEvent direction: dir
+
+	| p r0 r |
+	
+	p := page above: text at: editor point.
+	p ifNotNil: [ 
+		r0 := page point: text at: editor point.
+		editor movePointTo: p.
+		r := page point: text at: p.
+		r corner y < (0 - self topLeftInOwner y) ifTrue:[ owner scrollBy: 0 @ r0 origin y - r origin y ].
+
+		aKeyboardEvent shiftPressed 
+			ifFalse:[	editor moveMarkTo: editor point]. 
+		self redrawNeeded ].
+	^self.
 ! !
 
 !BidiTextMorph methodsFor: 'events' stamp: 'DF 4/11/2023 12:36:05'!
@@ -313,42 +393,24 @@ handlesMouseDown: aMouseButtonEvent
 handlesMouseOver: aMorphicEvent
 	^self visible ! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/18/2023 15:50:17'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/27/2023 21:55:59'!
 keyStroke: aKeyboardEvent
 
 	| dir char |
 	
 	dir := page writingDirectionAt: editor point.
 	
-	aKeyboardEvent isArrowLeft ifTrue:[
-		editor movePointTo: editor point - dir. 
-		aKeyboardEvent shiftPressed 
-			ifFalse:[	editor moveMarkTo: editor point]. 
-		self redrawNeeded. ^self ].
+	aKeyboardEvent isArrowLeft 
+		ifTrue:[^self moveLeft: aKeyboardEvent direction: dir].
 	
-	aKeyboardEvent isArrowRight ifTrue:[
-		editor movePointTo: editor point + dir. 
-		aKeyboardEvent shiftPressed
-			 ifFalse:[	editor moveMarkTo: editor point]. 
-		self redrawNeeded. ^self ].
+	aKeyboardEvent isArrowRight 
+		ifTrue:[^self moveRight: aKeyboardEvent direction:dir].
 
-	aKeyboardEvent isArrowUp ifTrue:[ 		| p |
-		p := page above: text at: editor point.
-		p ifNotNil: [ 
-			editor movePointTo: p.
-			aKeyboardEvent shiftPressed 
-				ifFalse:[	editor moveMarkTo: editor point]. 
-			self redrawNeeded ].
-		^self ].
+	aKeyboardEvent isArrowUp 
+		ifTrue:[^self moveUp: aKeyboardEvent direction: dir ].
 
-	aKeyboardEvent isArrowDown ifTrue:[ 		| p |
-		p := page below: text at: editor point.
-		p ifNotNil: [ 
-			editor movePointTo: p.
-			aKeyboardEvent shiftPressed 
-				ifFalse:[	editor moveMarkTo: editor point]. 
-			self redrawNeeded ].
-		 ^self ].
+	aKeyboardEvent isArrowDown 
+		ifTrue:[^self moveDown: aKeyboardEvent direction:dir].
 	
 	aKeyboardEvent isBackspace ifTrue:[ 
 		editor backspace.
@@ -785,11 +847,35 @@ undo
 count
 	^count! !
 
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/23/2023 21:36:22'!
+first
+	| p |
+	
+	p := self.
+	
+	[p left notNil] whileTrue:[p := p left].
+	
+	^p! !
+
 !BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:18:13'!
 height
 	^height! !
 
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:17:57'!
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/23/2023 21:36:31'!
+last
+	| p |
+	
+	p := self.
+	
+	[p right notNil] whileTrue:[p := p right].
+	
+	^p! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:01:02'!
+left
+	^left! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:10:09'!
 left: aNode right: anotherNode
 
 	left := aNode.
@@ -798,15 +884,35 @@ left: aNode right: anotherNode
 	left parent: self.
 	right parent: self.
 	
-	weight := left count.
-	count := left count + right count.
-	height := left height + right height.! !
+	self update.! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 21:29:34'!
+paragraphAt: anIndex
+
+	anIndex <= weight ifTrue:[^left paragraphAt:anIndex].
+	
+	^right paragraphAt: anIndex - weight.! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:00:58'!
+parent
+	^parent! !
 
 !BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:15:26'!
 parent: aNode
 
 	parent := aNode
 	! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:01:05'!
+right
+	^right! !
+
+!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:10:04'!
+update
+	
+	weight := left count.
+	count := left count + right count.
+	height := left height + right height.! !
 
 !BidiFork class methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:14:40'!
 build: anOrderedCollection from: bIndex to: eIndex
@@ -844,10 +950,6 @@ ascent: aNumber
 beginIndex
 	^zones first beginIndex! !
 
-!BidiLine methodsFor: 'accessing' stamp: 'DF 4/4/2023 17:47:23'!
-beginIndex: anInteger
-	beginIndex := anInteger! !
-
 !BidiLine methodsFor: 'accessing' stamp: 'DF 4/7/2023 12:30:13'!
 descent
 	^descent! !
@@ -859,10 +961,6 @@ descent: aNumber
 !BidiLine methodsFor: 'accessing' stamp: 'DF 4/15/2023 18:01:08'!
 endIndex
 	^zones last endIndex! !
-
-!BidiLine methodsFor: 'accessing' stamp: 'DF 4/4/2023 17:47:32'!
-endIndex: anInteger
-	endIndex := anInteger! !
 
 !BidiLine methodsFor: 'accessing' stamp: 'DF 4/4/2023 17:43:25'!
 extent: aPoint
@@ -924,17 +1022,35 @@ rebuild: aText base: baseIndex next: aToken direction: dir width: width
 	^next
 			 ! !
 
-!BidiLine methodsFor: 'drawing' stamp: 'DF 4/17/2023 18:47:29'!
-draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width 
+!BidiLine methodsFor: 'drawing' stamp: 'DF 4/27/2023 19:09:39'!
+draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width alignment: alignment  
 
-	| x |
+	| x xoffset |
 	
 	x := direction = 1 ifTrue:[0] ifFalse:[width].
+	
+	xoffset := self xoffset: direction width: width alignment: alignment.
+	
+	x := xoffset * direction + x.
 	
 	zones do:[:each |
 		each draw: aText from: baseIndex on: aCanvas at: (x@y) direction: direction.
 		x := x + (each width * direction) ].
 		
+! !
+
+!BidiLine methodsFor: 'drawing' stamp: 'DF 4/27/2023 19:09:21'!
+xoffset: direction width: width alignment: alignment
+
+	alignment isNil ifTrue:[^0].
+	
+	alignment = #left and: [direction = 1] :: ifTrue:[^0]. 
+
+	alignment = #right and:[direction = -1] :: ifTrue:[^0].
+		
+	alignment = #center 		ifTrue:[^(width - extent x) // 2].
+	
+	^width - extent x.
 ! !
 
 !BidiLine methodsFor: 'translating' stamp: 'DF 4/17/2023 18:27:28'!
@@ -1108,6 +1224,26 @@ paragraphAt: charIndex
 	^ { i . c . y }
 	! !
 
+!BidiPage methodsFor: 'translating' stamp: 'DF 4/27/2023 19:35:23'!
+paragraphsFrom: bIndex to: eIndex do: aBlock
+
+	| bcy ecy b e |
+		
+	bcy := self paragraphAt: bIndex.
+	
+	ecy := self paragraphAt: eIndex.
+	
+	b := bcy at:1.
+	
+	e := ecy at:1.
+	
+	^paragraphs from: b to: e do: aBlock.
+	
+
+
+
+	! !
+
 !BidiPage methodsFor: 'translating' stamp: 'DF 4/21/2023 12:52:10'!
 point: aText at: absoluteIndex
 
@@ -1207,7 +1343,7 @@ draw: aText on: aCanvas clip: yh
 		i := i + each count ].
 ! !
 
-!BidiParagraph methodsFor: 'drawing' stamp: 'DF 4/22/2023 21:22:24'!
+!BidiParagraph methodsFor: 'drawing' stamp: 'DF 4/27/2023 19:30:49'!
 draw: aText from: baseIndex on: aCanvas at: y0 clip: yh 
 
 	| y |
@@ -1222,7 +1358,7 @@ draw: aText from: baseIndex on: aCanvas at: y0 clip: yh
 	
 	lines do:[:each |
 		y := y + each height.
-		each draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width		].
+		each draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width alignment: alignment		].
 	! !
 
 !BidiParagraph methodsFor: 'initialization' stamp: 'DF 4/11/2023 16:47:43'!
@@ -1249,9 +1385,51 @@ determinePrimaryDirection: aText at: anIndex
 	direction := d = #rtl ifTrue:[-1] ifFalse:[d = #ltr ifTrue:[1] ifFalse:[direction] ].
 ! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 4/22/2023 16:16:04'!
-parent: aNode
-	parent := aNode! !
+!BidiParagraph methodsFor: 'building' stamp: 'DF 4/24/2023 17:53:05'!
+rebuild: aText from: bIndex to: eIndex
+
+	| line token base |
+
+	"A pargraph contains all characters until the first non line separator after
+	two or more line separators."
+	
+	lines removeAll.
+	
+	height := 0.
+
+	self determinePrimaryDirection: aText at: bIndex.
+	
+	token := BidiToken nextIn: aText from:bIndex to:eIndex direction: direction.
+	
+	base := token begin - 1.
+		
+	[ token tag ~= #eot and: [ token tag ~= #nl ] ]
+		whileTrue: [
+			line := BidiLine new.
+			token := line rebuild: aText base: base next: token direction: direction width: width. 
+			lines add: line.
+			token tag :: = #nl 	
+				ifTrue:[ 
+					token := BidiToken nextIn: aText after: token direction: direction ]	.
+			self assert: (token tag = #eot or: [token tag = #nl] or:[token end > lines last endIndex ]). 		].
+	
+	" We have seen two line separators in a row. Add all the other lines separators. "
+	
+	[ token tag = #nl ]
+		whileTrue:[
+			line := BidiLine emptyAt: token begin - base.
+			lines add: line.
+			token := BidiToken nextIn: aText after: token direction: direction			 ].
+		
+	( aText isEmpty and: [token tag = #eot] )
+		ifTrue:[
+			line := BidiLine emptyAt: token begin - base.
+			lines add: line			].
+	
+	height := lines inject:0 into:[:acc : each | acc + each height].
+	
+	^token
+	! !
 
 !BidiParagraph methodsFor: 'building' stamp: 'DF 4/16/2023 12:15:18'!
 rebuild: aText next: aToken
@@ -1301,6 +1479,11 @@ rebuild: aText next: aToken
 	
 	^token
 	! !
+
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/27/2023 19:11:39'!
+alignment: aSymbol
+	"#left #right or #center"
+	alignment := aSymbol! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:38:07'!
 beginIndex
@@ -1512,6 +1695,92 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex
 	
 	^rects! !
 
+!BidiParagraph methodsFor: 'enumerating' stamp: 'DF 4/23/2023 21:35:16'!
+first
+	^self! !
+
+!BidiParagraph methodsFor: 'enumerating' stamp: 'DF 4/23/2023 21:35:19'!
+last
+	^self! !
+
+!BidiParagraph methodsFor: 'enumerating' stamp: 'DF 4/23/2023 21:34:40'!
+pred
+	"answer the previous paragraph in the paragraph tree, or nil if this is the first paragraph"
+	
+	|p |
+	
+	p := self.
+	
+	[p parent notNil and: [ p parent left == p] ] whileTrue:[p := p parent].
+	
+	p parent ifNil:[^nil].
+	
+	^p parent left last! !
+
+!BidiParagraph methodsFor: 'enumerating' stamp: 'DF 4/23/2023 21:33:50'!
+succ
+	"answer the next paragraph in the paragraph tree, or nil if this is the last paragraph"
+	
+	|p |
+	
+	p := self.
+	
+	[p parent notNil and: [ p parent right == p] ] whileTrue:[p := p parent].
+	
+	p parent ifNil:[^nil].
+	
+	^p parent right first! !
+
+!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/23/2023 21:36:59'!
+left
+	^nil! !
+
+!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/22/2023 21:30:50'!
+paragraphAt: anIndex
+
+	^self! !
+
+!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/23/2023 21:38:25'!
+parent
+	^parent! !
+
+!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/22/2023 16:16:04'!
+parent: aNode
+	parent := aNode! !
+
+!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/23/2023 21:37:02'!
+right
+	^nil! !
+
+!BidiParagraph methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:25:15'!
+delete
+	
+	" delete self from the tree and answer the tree's root "
+	
+	| sibling grandpa p q |
+	
+	parent ifNil:[^nil].
+	
+	sibling := parent left == self ifTrue:[parent right] ifFalse:[parent left].
+	
+	grandpa := parent parent.
+	
+	grandpa ifNil:[sibling parent: nil. ^sibling].
+	
+	sibling parent: grandpa.
+	
+	grandpa left == parent ifTrue:[grandpa left: sibling] ifFalse:[grandpa right: sibling].
+	
+	p := grandpa.
+	
+	[p isNil] 
+		whileFalse:[
+			p update.
+			q := p.
+			p := p parent ].
+	
+	^q! !
+
 !BidiParenComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/16/2023 18:22:31'!
 compose: aUnicodeString
 
@@ -1625,6 +1894,33 @@ nextIn: aString after: aToken direction: dir
 	c writingDirection = #rtl and:[dir = -1] :: ifTrue:[^self nextWord: aString at: index direction: dir].
 	
 	^self nextContra: aString at: index direction: dir.
+		
+	! !
+
+!BidiToken class methodsFor: 'instance creation' stamp: 'DF 4/24/2023 17:53:39'!
+nextIn: aString from: bIndex to:eIndex direction: dir
+ 
+	| c |
+	
+	bIndex > aString size ifTrue:[^BidiToken new tag:#eot ; begin: bIndex ; end: bIndex ; yourself ].
+
+	bIndex > eIndex ifTrue:[^BidiToken new tag:#eot ; begin: bIndex ; end: bIndex ; yourself ].
+
+	c := aString at:bIndex.
+	
+	c isLineSeparator ifTrue:[^BidiToken new tag:#nl ; begin:bIndex ; end: bIndex+1; yourself].
+	
+	c isSeparator ifTrue:[^BidiToken new tag: #ws ; begin:bIndex; end: bIndex+1; yourself].
+ 
+	c writingDirection = #neutral ifTrue:[^self nextNeutral: aString at: bIndex].
+	
+	c writingDirection = #tltr ifTrue:[^ self nextNumber: aString at: bIndex direction: dir].
+
+	c writingDirection = #ltr and:[dir = 1] :: ifTrue:[^self nextWord: aString at: bIndex direction: dir].
+	
+	c writingDirection = #rtl and:[dir = -1] :: ifTrue:[^self nextWord: aString at: bIndex direction: dir].
+	
+	^self nextContra: aString at: bIndex direction: dir.
 		
 	! !
 
