@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5722] on 27 April 2023 at 10:34:15 pm'!
+'From Cuis 6.0 [latest update: #5772] on 5 May 2023 at 9:09:48 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 77!
+!provides: 'BidiText' 1 80!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -342,7 +342,7 @@ moveRight: aKeyboardEvent direction: dir
 		 ifFalse:[	editor moveMarkTo: editor point]. 
 	self redrawNeeded. ^self! !
 
-!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 4/27/2023 22:29:42'!
+!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 4/28/2023 10:53:44'!
 moveUp: aKeyboardEvent direction: dir
 
 	| p r0 r |
@@ -352,7 +352,7 @@ moveUp: aKeyboardEvent direction: dir
 		r0 := page point: text at: editor point.
 		editor movePointTo: p.
 		r := page point: text at: p.
-		r corner y < (0 - self topLeftInOwner y) ifTrue:[ owner scrollBy: 0 @ r0 origin y - r origin y ].
+		r origin y < (0 - self topLeftInOwner y) ifTrue:[ owner scrollBy: 0 @ r0 origin y - r origin y ].
 
 		aKeyboardEvent shiftPressed 
 			ifFalse:[	editor moveMarkTo: editor point]. 
@@ -571,10 +571,10 @@ initialize
 	
 	! !
 
-!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 4/16/2023 11:41:03'!
+!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 5/3/2023 18:57:10'!
 text: aText
 
-	text := aText asUnicodeStringOrText asText.
+	text := aText.
 	
 	editor text: text.
 	
@@ -601,7 +601,7 @@ undo
 	
 	self redrawNeeded.! !
 
-!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 4/18/2023 17:06:20'!
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 5/5/2023 21:07:44'!
 example
 
 	"self example"
@@ -622,7 +622,7 @@ example
 
 Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَرَبِيّ, ʿarabī [ˈʕarabiː] or [ʕaraˈbij]) (sometimes arguably, the Arabic languages) is a Semitic language spoken primarily across the Arab world.[6] Having emerged in the 1st century, it is named after the Arab people; the term "Arab" was initially used to describe those living in the Arabian Peninsula, as perceived by geographers from ancient Greece.[7]'.
 
-	PluggableScrollPane new scroller: (BidiTextMorph new text:s ; morphExtent:1024@1600); morphExtent: 1064@768 ; openInWorld
+	PluggableScrollPane new scroller: (BidiTextMorph new text:s asText ; morphExtent:1024@1600); morphExtent: 1064@768 ; openInWorld
 	! !
 
 !ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 20:23:16'!
@@ -765,11 +765,14 @@ delete
 	self moveMarkTo: point.
 ! !
 
-!BidiEditor methodsFor: 'editing' stamp: 'DF 4/7/2023 18:52:44'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 5/3/2023 18:38:32'!
 insert: aCodePoint
 
+	| p | 
+	
 	self replaceSelectionWith: aCodePoint asString.
-	self movePointTo: point + 1.
+	p := point min: mark.
+	self movePointTo: p + 1.
 	self moveMarkTo: point.
 ! !
 
@@ -1053,14 +1056,18 @@ xoffset: direction width: width alignment: alignment
 	^width - extent x.
 ! !
 
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/17/2023 18:27:28'!
-index: aText base: anInteger direction: direction width: width at: xCoord
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/28/2023 14:44:15'!
+index: aText base: anInteger direction: direction width: width at: xCoord alignment: alignment 
 
-	| x i |
+	| x xoffset i |
 	
 	self assert: xCoord >= 0.
 	
 	x := direction = 1 ifTrue:[0] ifFalse:[width].
+
+	xoffset := self xoffset: direction width: width alignment: alignment.
+	
+	x := xoffset * direction + x.
 	 
 	i := 1.
 	
@@ -1084,15 +1091,19 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex at: y direction: direc
 	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x@y) direction: direction). x := x + (each width * direction). acc ].
 	! !
 
-!BidiLine methodsFor: 'translating' stamp: 'DF 4/17/2023 16:53:28'!
-xcoord: aText direction: direction base: baseIndex at: index width: width
+!BidiLine methodsFor: 'translating' stamp: 'DF 4/28/2023 14:42:49'!
+xcoord: aText direction: direction base: baseIndex at: index width: width alignment: alignment 
 
 	" answer the x coordinate of the code point whose index is index. "	
 	
-	| i x |
+	| i x xoffset |
 	
 	i := 1.
 	x := direction = 1 ifTrue:[0] ifFalse:[width].
+
+	xoffset := self xoffset: direction width: width alignment: alignment.
+	
+	x := xoffset * direction + x.
 	
 	[i <= zones size and: [index >= (zones at:i :: endIndex)] ] 
 		whileTrue:[x := x + ((zones at:i :: width) * direction). i := i + 1. ].
@@ -1580,7 +1591,7 @@ below: aText at: anIndex
 	^ aLineBelow beginIndex + offset min: aLineBelow endIndex.
 	! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/17/2023 18:26:24'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/28/2023 14:43:40'!
 index: aText base: anInteger at: aPoint
 
 	| y i |
@@ -1595,7 +1606,7 @@ index: aText base: anInteger at: aPoint
 		whileTrue:[ y := y + (lines at:i :: height). i := i + 1].
 
 	i <= lines size 	
-		ifTrue:[^ lines at:i :: index: aText base: anInteger direction:direction width: width at: aPoint x].
+		ifTrue:[^ lines at:i :: index: aText base: anInteger direction:direction width: width at: aPoint x alignment: alignment].
 		
 	lines isEmpty ifTrue:[^1].
 	
@@ -1639,7 +1650,7 @@ lineAt: offset
 	
 	^{ i . y }! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 16:10:03'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/28/2023 14:41:41'!
 point: aText base: baseIndex at: offset
 
 	|i y iy x aLine |
@@ -1650,7 +1661,7 @@ point: aText base: baseIndex at: offset
 	
 	aLine := lines at:i.
 	
-	x := aLine xcoord: aText direction: direction base: baseIndex at: offset width: width.
+	x := aLine xcoord: aText direction: direction base: baseIndex at: offset width: width alignment: alignment.
 	
 	^x@(y+aLine height - aLine ascent) extent: 0@(aLine ascent + aLine descent)! !
 
@@ -2186,7 +2197,7 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 	^super draw: aText from: baseIndex on: aCanvas at: aPoint + (extent x * direction@0) direction: direction * -1! !
 
-!BidiContraZone methodsFor: 'translating' stamp: 'DF 4/15/2023 21:40:58'!
+!BidiContraZone methodsFor: 'translating' stamp: 'DF 4/28/2023 14:41:55'!
 xcoord: aText direction: direction base: baseIndex at: index width: width
 
 	| x |
