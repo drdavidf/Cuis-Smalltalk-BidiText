@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5772] on 6 May 2023 at 9:44:53 pm'!
+'From Cuis 6.0 [latest update: #5772] on 7 May 2023 at 10:09:46 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 87!
+!provides: 'BidiText' 1 89!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -156,7 +156,7 @@ copySelection
 	
 	Clipboard storeObject: aText.! !
 
-!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/12/2023 09:48:51'!
+!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 5/7/2023 20:54:32'!
 cut
 
 	| aText |
@@ -166,22 +166,17 @@ cut
 	aText := editor selection.
 	Clipboard storeObject: aText.
 	
-	editor backspace.
-	page rebuild: text.	
-	
-	self redrawNeeded.! !
+	self performEditingAction: [	editor backspace].
+! !
 
-!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/12/2023 09:49:03'!
+!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 5/7/2023 20:55:54'!
 paste
 
 	"Paste the text from the shared buffer over the current selection and 
 	redisplay if necessary."
 
-	editor paste: Clipboard retrieveStringOrText.
-	
-	page rebuild: text.
-	
-	self redrawNeeded.! !
+	self performEditingAction: [editor paste: Clipboard retrieveStringOrText].
+! !
 
 !BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/8/2023 16:31:08'!
 pasteRecent
@@ -192,14 +187,11 @@ pasteRecent
 	self clipboardTextPut: clipping.
 	^ self paste! !
 
-!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/12/2023 09:49:10'!
+!BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 5/7/2023 20:56:43'!
 pasteString
 
-	editor paste: Clipboard retrieveStringOrText asPlainString.
-	
-	page rebuild: text.
-	
-	self redrawNeeded.! !
+	self performEditingAction: [editor paste: Clipboard retrieveStringOrText asPlainString].
+! !
 
 !BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/8/2023 15:58:05'!
 addCutAndPasteMenuSectionTo: aMenu
@@ -358,17 +350,36 @@ moveUp: aKeyboardEvent direction: dir
 	^self.
 ! !
 
-!BidiTextMorph methodsFor: 'editing' stamp: 'DF 5/6/2023 18:47:45'!
-insert: char
+!BidiTextMorph methodsFor: 'editing' stamp: 'DF 5/7/2023 22:06:16'!
+backspace
 
 	| b e delta |
 
 	b := editor point min: editor mark.
 	e := editor point max: editor mark.
 	
-	delta := editor insert: char.
+	b = e ifTrue:[b := b - 1 max: 1].
+	
+	delta := editor backspace.
 
 	page rebuild: text from: b to: e delta: delta.
+	
+	self redrawNeeded.	
+! !
+
+!BidiTextMorph methodsFor: 'editing' stamp: 'DF 5/7/2023 20:58:24'!
+performEditingAction: aBlock
+
+	| b e delta |
+
+	b := editor point min: editor mark.
+	e := editor point max: editor mark.
+	
+	delta := aBlock value.
+
+	page rebuild: text from: b to: e delta: delta.
+	
+	self redrawNeeded.	
 ! !
 
 !BidiTextMorph methodsFor: 'events' stamp: 'DF 4/11/2023 12:36:05'!
@@ -404,7 +415,7 @@ handlesMouseDown: aMouseButtonEvent
 handlesMouseOver: aMorphicEvent
 	^self visible ! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 5/6/2023 18:11:46'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 5/7/2023 22:06:36'!
 keyStroke: aKeyboardEvent
 
 	| dir char |
@@ -424,19 +435,13 @@ keyStroke: aKeyboardEvent
 		ifTrue:[^self moveDown: aKeyboardEvent direction:dir].
 	
 	aKeyboardEvent isBackspace ifTrue:[ 
-		editor backspace.
-		page rebuild: text.
-		self redrawNeeded. ^self ].
+		^self backspace] .
 
 	aKeyboardEvent isDelete ifTrue:[ 
-		editor delete.
-		page rebuild: text.
-		self redrawNeeded. ^self ].
+		^self performEditingAction: [editor delete] ].
 
 	aKeyboardEvent isReturnKey ifTrue:[ 
-		editor insert: Character lfCharacter.
-		page rebuild: text.
-		self redrawNeeded. ^self ].
+		^self performEditingAction: [editor insert: Character lfCharacter] ].
 	
 	char := aKeyboardEvent keyCharacter.
 	
@@ -452,9 +457,7 @@ keyStroke: aKeyboardEvent
 
 	aKeyboardEvent controlKeyPressed and:[char = $Z] :: ifTrue:[^self redo].
 
-	self insert: char.
-			
-	self redrawNeeded.
+	self performEditingAction: [editor insert: char].
 	! !
 
 !BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 21:13:41'!
@@ -768,13 +771,19 @@ align: aSymbol
 	aCommand doOn: self.
 	! !
 
-!BidiEditor methodsFor: 'editing' stamp: 'DF 4/7/2023 18:51:13'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 5/7/2023 20:30:22'!
 backspace
 
+	| delta |
+	
 	mark = point ifTrue:[self moveMarkTo: point - 1].
-	self replaceSelectionWith: ''.
+	
+	delta := self replaceSelectionWith: ''.
+	
 	self movePointTo: (point min: mark).
 	self moveMarkTo: point.
+	
+	^delta
 ! !
 
 !BidiEditor methodsFor: 'editing' stamp: 'DF 5/6/2023 13:34:44'!
@@ -788,14 +797,19 @@ basicReplaceFrom: start to: stop with: replacement
 
 	text replaceFrom: start to: stop with: replacement! !
 
-!BidiEditor methodsFor: 'editing' stamp: 'DF 4/9/2023 18:21:35'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 5/7/2023 20:44:18'!
 delete
 
+	| delta |
+	
 	mark = point ifTrue:[self movePointTo: point + 1].
-	self replaceSelectionWith: ''.
+	
+	delta := self replaceSelectionWith: ''.
 	
 	self movePointTo: (point min: mark).
 	self moveMarkTo: point.
+	
+	^delta
 ! !
 
 !BidiEditor methodsFor: 'editing' stamp: 'DF 5/6/2023 17:54:31'!
@@ -817,14 +831,18 @@ insert: aCodePoint
 
 	^delta! !
 
-!BidiEditor methodsFor: 'editing' stamp: 'DF 4/11/2023 14:55:19'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 5/7/2023 20:55:21'!
 paste: aText
 
 	"Paste aText over the current selection."
 	
-	self replaceSelectionWith: aText.
+	| delta |
 	
-	self movePointTo: point + aText size ; moveMarkTo: point. ! !
+	delta := self replaceSelectionWith: aText.
+	
+	self movePointTo: point + aText size ; moveMarkTo: point. 
+	
+	^delta ! !
 
 !BidiEditor methodsFor: 'editing' stamp: 'DF 5/6/2023 18:09:52'!
 replaceSelectionWith: aText
@@ -1033,10 +1051,10 @@ emptyAt: anIndex
 	
 ! !
 
-!BidiLine methodsFor: 'building' stamp: 'DF 5/6/2023 15:25:57'!
+!BidiLine methodsFor: 'building' stamp: 'DF 5/7/2023 21:09:15'!
 rebuild: aText base: baseIndex next: aToken until: eIndex direction: dir width: width
 
-	| current next zone w h |
+	| current next zone m ex w h |
 
 	self assert: (aToken tag ~= #eot).
 	
@@ -1045,8 +1063,17 @@ rebuild: aText base: baseIndex next: aToken until: eIndex direction: dir width: 
 	current := aToken.
 
 	w := width.
+
+	m := aText metricsFrom: current begin to: current end.
+	ex := m at:1.
 	
-	zone := BidiZone from: aText token: aToken direction: dir.
+	[ex x > width] "the first word is too long for the given width, break it." 	
+		whileTrue:[ 
+			current shrink. 
+			m := aText metricsFrom: current begin to: current end.
+			ex := m at:1		].
+	
+	zone := BidiZone from: aText token: current direction: dir.
 	next := zone rebuild: aText base: baseIndex next: current until: eIndex direction: dir width: w.
 	
 	[0 < zone width and: [zone width <= w] and: [current tag ~= #eot ] and:[current tag ~= #nl ] ] 
@@ -2065,7 +2092,7 @@ proceed: text at: aToken direction: dir
 
 	^self subclassResponsibility ! !
 
-!BidiZone methodsFor: 'building' stamp: 'DF 5/6/2023 21:36:19'!
+!BidiZone methodsFor: 'building' stamp: 'DF 5/7/2023 21:06:25'!
 rebuild: aText base: baseIndex next: aToken until: eIndex direction: dir width: width 
 
 	"Calculate the extent of the zone that begins at aToken begin, and answer the token for what comes
@@ -2088,12 +2115,6 @@ rebuild: aText base: baseIndex next: aToken until: eIndex direction: dir width: 
 	w := 0.
 	h := ex y.
 	
-	[w + ex x > width] "the word is too long for the given width, break it." 	
-		whileTrue:[ 
-			token shrink. 
-			m := aText metricsFrom: token begin to: token end.
-			ex := m at:1		].
-		
 	[w + ex x <= width and:[ self proceed: aText at: token direction: dir ] ] 
 		whileTrue:[
 			w := w + ex x.
