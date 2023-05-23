@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5753] on 23 May 2023 at 9:10:09 am'!
+'From Cuis 6.0 [latest update: #5772] on 23 May 2023 at 9:15:39 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 97!
+!provides: 'BidiText' 1 98!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -192,6 +192,36 @@ BidiZone subclass: #BidiSkipZone
 	category: 'BidiText'!
 !classDefinition: 'BidiSkipZone class' category: 'BidiText'!
 BidiSkipZone class
+	instanceVariableNames: ''!
+
+!classDefinition: #Edge category: 'BidiText'!
+Object subclass: #Edge
+	instanceVariableNames: 'from to weight'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'Edge class' category: 'BidiText'!
+Edge class
+	instanceVariableNames: ''!
+
+!classDefinition: #Graph category: 'BidiText'!
+Object subclass: #Graph
+	instanceVariableNames: 'vertices'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'Graph class' category: 'BidiText'!
+Graph class
+	instanceVariableNames: ''!
+
+!classDefinition: #Vertex category: 'BidiText'!
+Object subclass: #Vertex
+	instanceVariableNames: 'adj key distance prev'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'Vertex class' category: 'BidiText'!
+Vertex class
 	instanceVariableNames: ''!
 
 
@@ -708,6 +738,18 @@ example
 Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَرَبِيّ, ʿarabī [ˈʕarabiː] or [ʕaraˈbij]) (sometimes arguably, the Arabic languages) is a Semitic language spoken primarily across the Arab world.[6] Having emerged in the 1st century, it is named after the Arab people; the term "Arab" was initially used to describe those living in the Arabian Peninsula, as perceived by geographers from ancient Greece.[7]'.
 
 	PluggableScrollPane new scroller: (BidiTextMorph new morphExtent:1024@1600; text:s asText); morphExtent: 1064@768 ; openInWorld
+	! !
+
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 20:31:48'!
+example2
+
+	"self example2"
+	
+	| s |
+
+	s := 'In olden times when wishing still helped one, there lived a king whose daughters were all beautiful; 	and the youngest was so beautiful that the sun itself, which has seen so much, was astonished whenever it shone in here face. Close by the king''s castle lay a great dark forest, and under an old lime-tree in the forest was a well, and when the day was very warm, the king''s child went out into the forest and sat down by the side of the cool fountain; and when she was bored she took a golden ball, and threw it up on high and caught it; and this ball was her favorite plaything'.
+
+	PluggableScrollPane new scroller: (BidiTextMorph new morphExtent:1024@800; text:s asUnicodeString asText); morphExtent: 1064@768 ; openInWorld
 	! !
 
 !ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 20:23:16'!
@@ -1320,10 +1362,10 @@ break: tokens
 width: aNumber
 	width := aNumber! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 08:47:00'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 21:13:37'!
 break: tokens 
 
-	| edges indices graph vertices breaks last p path |
+	| edges indices graph vertices breaks last p path result |
 	
 	edges := self potentialBreaks: tokens. 
 	
@@ -1356,29 +1398,32 @@ break: tokens
 	[p prev notNil ] 
 		whileTrue:[path add: p prev. p := (p prev) from ].
 		
-	^path reverse collect:[:each | breaks at: each]
-		
+	result := path reverse collect:[:each | breaks at: each].
+	
+	result add: (BidiLineBreak new from: result last to; to: tokens size + 1; yourself).
+	
+	^result	
 	! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 09:04:15'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 21:06:43'!
 nextPotentialBreak: tokens after: index 
 	
 	|i | 
 	
 	i := index.
-	
+
+	[i <= tokens size and: [tokens at:i :: tag = #word or:[tokens at:i :: tag = #contra] ] ]
+		whileTrue:[i := i + 1].
+
 	[i <= tokens size and:[tokens at: i :: isSeparator] ] 
 		whileTrue:[ i := i + 1. ].
 		
-	[i <= tokens size and: [tokens at:i :: tag = #word or:[tokens at:i :: tag = #contra] ] ]
-		whileTrue:[i := i + 1].
-	
 	i <= tokens size and:[tokens at:i :: tag = #eot] :: ifTrue:[i := i 	+ 1].
 			
 	^i.
 ! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/22/2023 19:23:57'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 21:07:49'!
 potentialBreaks: tokens 
 
 	|  b breaks active |
@@ -1399,7 +1444,7 @@ potentialBreaks: tokens
 		whileTrue:[ | keep | 
 			keep := Set new.
 			active do:[:each | | r |
-				r := self skipRatio: tokens from: each to: b.
+				r := self skipRatio: tokens from: each to: b-1.
 				r >= -1 
 					ifTrue:[keep add: each]. 
 				r abs <= 1 ifTrue:[
@@ -1786,7 +1831,7 @@ initialize
 	
 	height := 0.! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 5/23/2023 08:54:56'!
+!BidiParagraph methodsFor: 'building' stamp: 'DF 5/23/2023 19:58:21'!
 build: aText from: bIndex to: eIndex
 
 	| tokens breaks base |
@@ -1802,7 +1847,7 @@ build: aText from: bIndex to: eIndex
 	
 	base := bIndex - 1.
 
-	breaks := "BidiRaggedLineBreaker" BidiJustifiedLineBreaker new width: width; stretch: (1/3.0) ; shrink: (0.9); break: tokens.
+	breaks := "BidiRaggedLineBreaker" BidiJustifiedLineBreaker new width: width; stretch: (1/3.0) ; shrink: (1/3.0); break: tokens.
 	
 	lines := breaks collect:[:each | each buildLine: tokens base: base direction: direction ]. 
 	
@@ -2342,13 +2387,6 @@ of: aText from: begin to: end
 	
 	^ aBidiTextMetrics ! !
 
-!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
-shrink: aString
-
-	end := end - 1.
-	
-	metrics := BidiTextMetrics of: aString from: begin to: end! !
-
 !BidiToken methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:58:47'!
 begin
 	^begin! !
@@ -2408,6 +2446,13 @@ isSeparator
 
 	^tag = #ws or:[tag = #nl]
 	! !
+
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
+shrink: aString
+
+	end := end - 1.
+	
+	metrics := BidiTextMetrics of: aString from: begin to: end! !
 
 !BidiToken class methodsFor: 'instance creation' stamp: 'DF 5/20/2023 12:58:46'!
 nextContra: aString at: index direction: dir
@@ -2746,6 +2791,125 @@ proceed: tokens at: index direction: dir
 	aToken := tokens at:index.
 	
 	^ aToken tag = #ws! !
+
+!Edge methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:50:12'!
+connect: aSourceVertex to: aTargetVertex
+
+	aSourceVertex addOutgoingEdge: self.
+	
+	from := aSourceVertex.
+	to := aTargetVertex.! !
+
+!Edge methodsFor: 'as yet unclassified' stamp: 'DF 5/14/2023 23:18:06'!
+from
+	^from! !
+
+!Edge methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:43:22'!
+from: aVertex
+	from := aVertex! !
+
+!Edge methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:51:28'!
+to
+	^to! !
+
+!Edge methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:43:28'!
+to: aVertex
+	to := aVertex! !
+
+!Edge methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:51:20'!
+weight
+	^weight! !
+
+!Edge methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:43:35'!
+weight: aNumber
+	weight := aNumber! !
+
+!Graph methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 12:06:31'!
+addVertex: aVertex
+
+	vertices add: aVertex! !
+
+!Graph methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:52:13'!
+initialize
+
+	vertices := OrderedCollection new.
+! !
+
+!Graph methodsFor: 'as yet unclassified' stamp: 'DF 5/22/2023 19:19:10'!
+min: anOrderedCollection fun: aBlock
+
+	"Answer the element with the minimal result when evaluating aBlock on all the elements of the receiver."
+	| key vertex |
+	
+	anOrderedCollection emptyCheck.
+	
+	vertex := anOrderedCollection first.
+	key :=  aBlock value: vertex.
+	
+	anOrderedCollection do: [:each | | x | x := aBlock value: each. x < key ifTrue:[key := x. vertex := each] ].
+	
+	^ vertex! !
+
+!Graph methodsFor: 'as yet unclassified' stamp: 'DF 5/22/2023 19:18:40'!
+shortestPathFrom: originVertex to: destVertex weightFunction: aBlock
+
+	| unvisited current |
+	
+	unvisited := vertices copy.
+	
+	vertices do:[:each | each distance: Float fmax. each prev:nil. ].
+	
+	originVertex distance:0.
+	
+	current := originVertex. 
+	
+	[unvisited notEmpty]
+		whileTrue:[
+			current := self min: unvisited fun: [:each | each distance].
+			current adj do:[:each | | d v |
+				v := each to.
+				d := current distance + (aBlock value: each weight).
+				d < v distance ifTrue:[v distance: d]. v prev: each. ].
+			unvisited remove: current ].
+			
+! !
+
+!Vertex methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:50:09'!
+addOutgoingEdge: anEdge
+
+	adj add: anEdge.! !
+
+!Vertex methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 12:29:49'!
+adj
+	^adj! !
+
+!Vertex methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 12:17:12'!
+distance
+	^distance! !
+
+!Vertex methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 12:17:07'!
+distance: aNumber
+	distance := aNumber! !
+
+!Vertex methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:43:56'!
+initialize
+	adj := OrderedCollection new.! !
+
+!Vertex methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:51:11'!
+key
+	^key! !
+
+!Vertex methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:51:08'!
+key: anObject
+	key := anObject! !
+
+!Vertex methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 13:02:54'!
+prev
+	^prev! !
+
+!Vertex methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 13:03:01'!
+prev: aVertex
+	prev := aVertex! !
 
 !UnicodeCodePoint methodsFor: '*BidiText' stamp: 'DF 4/16/2023 14:02:30'!
 writingDirection
