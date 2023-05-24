@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5772] on 23 May 2023 at 9:15:39 pm'!
+'From Cuis 6.0 [latest update: #5753] on 24 May 2023 at 8:19:32 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 98!
+!provides: 'BidiText' 1 99!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -740,16 +740,17 @@ Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَ
 	PluggableScrollPane new scroller: (BidiTextMorph new morphExtent:1024@1600; text:s asText); morphExtent: 1064@768 ; openInWorld
 	! !
 
-!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 20:31:48'!
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 5/24/2023 14:10:09'!
 example2
 
 	"self example2"
 	
 	| s |
 
-	s := 'In olden times when wishing still helped one, there lived a king whose daughters were all beautiful; 	and the youngest was so beautiful that the sun itself, which has seen so much, was astonished whenever it shone in here face. Close by the king''s castle lay a great dark forest, and under an old lime-tree in the forest was a well, and when the day was very warm, the king''s child went out into the forest and sat down by the side of the cool fountain; and when she was bored she took a golden ball, and threw it up on high and caught it; and this ball was her favorite plaything'.
+	s := 'In olden times when wishing still helped one, there lived a king whose daughters were all beautiful; 
+		and the youngest was so beautiful that the sun itself, which has seen so much, was astonished whenever it shone in here face. Close by the king''s castle lay a great dark forest, and under an old lime-tree in the forest was a well, and when the day was very warm, the king''s child went out into the forest and sat down by the side of the cool fountain; and when she was bored she took a golden ball, and threw it up on high and caught it; and this ball was her favorite plaything.'.
 
-	PluggableScrollPane new scroller: (BidiTextMorph new morphExtent:1024@800; text:s asUnicodeString asText); morphExtent: 1064@768 ; openInWorld
+	PluggableScrollPane new scroller: (BidiTextMorph new morphExtent:680@480; text:s asUnicodeString asText); morphExtent: 720@768 ; openInWorld
 	! !
 
 !ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 20:23:16'!
@@ -1362,7 +1363,7 @@ break: tokens
 width: aNumber
 	width := aNumber! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 21:13:37'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/24/2023 14:05:51'!
 break: tokens 
 
 	| edges indices graph vertices breaks last p path result |
@@ -1831,7 +1832,7 @@ initialize
 	
 	height := 0.! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 5/23/2023 19:58:21'!
+!BidiParagraph methodsFor: 'building' stamp: 'DF 5/24/2023 14:07:10'!
 build: aText from: bIndex to: eIndex
 
 	| tokens breaks base |
@@ -1847,7 +1848,7 @@ build: aText from: bIndex to: eIndex
 	
 	base := bIndex - 1.
 
-	breaks := "BidiRaggedLineBreaker" BidiJustifiedLineBreaker new width: width; stretch: (1/3.0) ; shrink: (1/3.0); break: tokens.
+	breaks := "BidiRaggedLineBreaker" BidiJustifiedLineBreaker new width: width; stretch: (2/3.0) ; shrink: (1/3.0); break: tokens.
 	
 	lines := breaks collect:[:each | each buildLine: tokens base: base direction: direction ]. 
 	
@@ -2387,6 +2388,13 @@ of: aText from: begin to: end
 	
 	^ aBidiTextMetrics ! !
 
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
+shrink: aString
+
+	end := end - 1.
+	
+	metrics := BidiTextMetrics of: aString from: begin to: end! !
+
 !BidiToken methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:58:47'!
 begin
 	^begin! !
@@ -2446,13 +2454,6 @@ isSeparator
 
 	^tag = #ws or:[tag = #nl]
 	! !
-
-!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
-shrink: aString
-
-	end := end - 1.
-	
-	metrics := BidiTextMetrics of: aString from: begin to: end! !
 
 !BidiToken class methodsFor: 'instance creation' stamp: 'DF 5/20/2023 12:58:46'!
 nextContra: aString at: index direction: dir
