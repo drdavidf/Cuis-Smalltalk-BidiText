@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5753] on 24 May 2023 at 8:19:32 pm'!
+'From Cuis 6.0 [latest update: #5772] on 26 May 2023 at 9:47:42 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 99!
+!provides: 'BidiText' 1 100!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -740,17 +740,18 @@ Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَ
 	PluggableScrollPane new scroller: (BidiTextMorph new morphExtent:1024@1600; text:s asText); morphExtent: 1064@768 ; openInWorld
 	! !
 
-!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 5/24/2023 14:10:09'!
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 5/26/2023 18:45:19'!
 example2
 
 	"self example2"
 	
 	| s |
 
-	s := 'In olden times when wishing still helped one, there lived a king whose daughters were all beautiful; 
-		and the youngest was so beautiful that the sun itself, which has seen so much, was astonished whenever it shone in here face. Close by the king''s castle lay a great dark forest, and under an old lime-tree in the forest was a well, and when the day was very warm, the king''s child went out into the forest and sat down by the side of the cool fountain; and when she was bored she took a golden ball, and threw it up on high and caught it; and this ball was her favorite plaything.'.
+	s := 'In olden times when wishing still helped one, there lived a king whose daughters were all beautiful; and the youngest was so beautiful that the sun itself, which has seen so much, was astonished whenever it shone in here face. 
 
-	PluggableScrollPane new scroller: (BidiTextMorph new morphExtent:680@480; text:s asUnicodeString asText); morphExtent: 720@768 ; openInWorld
+Close by the king''s castle lay a great dark forest, and under an old lime-tree in the forest was a well, and when the day was very warm, the king''s child went out into the forest and sat down by the side of the cool fountain; and when she was bored she took a golden ball, and threw it up on high and caught it; and this ball was her favorite plaything.'.
+
+	BidiTextMorph new morphExtent:640@480; text:s asUnicodeString asText ; openInWorld
 	! !
 
 !ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 20:23:16'!
@@ -1363,10 +1364,10 @@ break: tokens
 width: aNumber
 	width := aNumber! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/24/2023 14:05:51'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/26/2023 21:45:21'!
 break: tokens 
 
-	| edges indices graph vertices breaks last p path result |
+	| edges indices graph vertices breaks last p path result t |
 	
 	edges := self potentialBreaks: tokens. 
 	
@@ -1401,7 +1402,20 @@ break: tokens
 		
 	result := path reverse collect:[:each | breaks at: each].
 	
-	result add: (BidiLineBreak new from: result last to; to: tokens size + 1; yourself).
+	"add the last line, and create line breaks for as many newlines as there are at the end"
+	
+	t := result last to.
+	
+	[t <= tokens size and:[tokens at: t :: tag ~= #nl ] ] whileTrue:[t := t + 1].
+	
+	result add: (BidiLineBreak new from: result last to; to: t; yourself).
+	
+	t := t + 1.
+	 
+	[t <= tokens size and:[tokens at: t :: tag = #nl ] ] 
+		whileTrue:[
+			result add: (BidiLineBreak new from: t ; to: t; yourself).
+			t := t + 1].
 	
 	^result	
 	! !
@@ -1763,7 +1777,7 @@ build: aText from: bIndex to:eIndex delta: delta
 	
 	! !
 
-!BidiPage methodsFor: 'building' stamp: 'DF 5/22/2023 17:38:44'!
+!BidiPage methodsFor: 'building' stamp: 'DF 5/26/2023 20:49:07'!
 parse: aText from: b to: e direction: direction
 
 	| i aParagraph anOrderedCollection dir |
@@ -1789,7 +1803,7 @@ initialize
 	
 	width := 640.! !
 
-!BidiPage methodsFor: 'drawing' stamp: 'DF 4/22/2023 20:15:37'!
+!BidiPage methodsFor: 'drawing' stamp: 'DF 5/26/2023 21:09:51'!
 draw: aText on: aCanvas clip: yh
 
 	| i y |
@@ -1802,7 +1816,7 @@ draw: aText on: aCanvas clip: yh
 	paragraphs do:[:each |
 		each draw: aText from: i on: aCanvas at: y clip: yh.
 		y := y + each height.
-		i := i + each count ].
+		i := i + each count].
 ! !
 
 !BidiParagraph methodsFor: 'drawing' stamp: 'DF 4/27/2023 19:30:49'!
@@ -1832,7 +1846,7 @@ initialize
 	
 	height := 0.! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 5/24/2023 14:07:10'!
+!BidiParagraph methodsFor: 'building' stamp: 'DF 5/26/2023 18:38:37'!
 build: aText from: bIndex to: eIndex
 
 	| tokens breaks base |
@@ -1848,8 +1862,8 @@ build: aText from: bIndex to: eIndex
 	
 	base := bIndex - 1.
 
-	breaks := "BidiRaggedLineBreaker" BidiJustifiedLineBreaker new width: width; stretch: (2/3.0) ; shrink: (1/3.0); break: tokens.
-	
+	breaks := BidiJustifiedLineBreaker new width: width; stretch: (1.2) ; shrink: (0.5); break: tokens.
+
 	lines := breaks collect:[:each | each buildLine: tokens base: base direction: direction ]. 
 	
 	height := lines inject:0 into:[:acc : each | acc + each height].
@@ -1899,7 +1913,7 @@ empty
 	lines add: line	.
 ! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 5/20/2023 13:48:45'!
+!BidiParagraph methodsFor: 'building' stamp: 'DF 5/26/2023 21:05:22'!
 tokenize: aText from: bIndex to: eIndex
 
 	| tokens token |
@@ -1920,15 +1934,15 @@ tokenize: aText from: bIndex to: eIndex
 					tokens add: token.
 					token := BidiToken nextIn: aText after: token until: eIndex direction: direction ]		 ]	.
 	
-	" We have seen two line separators in a row. Add all the other lines separators. "
+	" We have seen two line separators in a row. Add all the other lines separators. "	
 	
 	[ token tag = #nl ]
 		whileTrue:[
 			tokens add: token.
 			token := BidiToken nextIn: aText after: token until: eIndex direction: direction ]	.	
 		
-	( token tag = #eot )
-		ifTrue:[	tokens add: token].
+	"( token tag = #eot )
+		ifTrue:[	tokens add: token]."
 	
 	^tokens
 	! !
@@ -1942,7 +1956,7 @@ alignment: aSymbol
 beginIndex
 	^lines first beginIndex! !
 
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/16/2023 14:37:44'!
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 5/26/2023 21:05:08'!
 count
 	^self endIndex - self beginIndex + 1 " we add 1 to account to the new line character that ends every paragraph but the last."! !
 
@@ -2388,13 +2402,6 @@ of: aText from: begin to: end
 	
 	^ aBidiTextMetrics ! !
 
-!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
-shrink: aString
-
-	end := end - 1.
-	
-	metrics := BidiTextMetrics of: aString from: begin to: end! !
-
 !BidiToken methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:58:47'!
 begin
 	^begin! !
@@ -2454,6 +2461,13 @@ isSeparator
 
 	^tag = #ws or:[tag = #nl]
 	! !
+
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
+shrink: aString
+
+	end := end - 1.
+	
+	metrics := BidiTextMetrics of: aString from: begin to: end! !
 
 !BidiToken class methodsFor: 'instance creation' stamp: 'DF 5/20/2023 12:58:46'!
 nextContra: aString at: index direction: dir
@@ -2549,15 +2563,13 @@ nextWord: aString at: index direction: dir
 	^BidiToken new tag: #word ; direction: wd; begin: index ; end: i ; metrics: (BidiTextMetrics of: aString from: index to: i); yourself.
 	! !
 
-!BidiZone methodsFor: 'building' stamp: 'DF 5/22/2023 18:49:43'!
+!BidiZone methodsFor: 'building' stamp: 'DF 5/26/2023 20:59:44'!
 build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretch 
 
 	| b |
 
 	self assert: bIndex < e.
 	
-	self assert: (tokens at:bIndex :: tag ~= #nl).
-
 	metrics := BidiTextMetrics new width:0 ; height:0 ; ascent:0 ; descent: 0; yourself.
 		
 	b := bIndex.
@@ -2586,7 +2598,7 @@ proceed: tokens at: index direction: dir
 
 	^self subclassResponsibility ! !
 
-!BidiZone methodsFor: 'drawing' stamp: 'DF 5/22/2023 18:12:22'!
+!BidiZone methodsFor: 'drawing' stamp: 'DF 5/26/2023 21:39:47'!
 draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 	| x y b e j font color r s extent |
@@ -2603,9 +2615,14 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 	
 	b := baseIndex + beginIndex.
 	
+	self assert: b <= aText size.
+	
 	[ b < (baseIndex + endIndex) ] whileTrue:[
-		
+				
 		j := aText runLengthFor: b.
+		
+		self assert: j > 0.
+		
 		font := aText fontAt: b default: nil.
 		color := aText colorAt: b :: ifNil:[Color black].
 		e := b+j-1 min: baseIndex + endIndex - 1.
@@ -2618,7 +2635,11 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 			
 		aCanvas drawString: s from: 1 to: s size atBaseline: x@y font: font color: color direction: direction.
 		x := x + ((font widthOfString: s from: 1 to: s size) * direction).
-		b := e+1 ]! !
+		b := e+1.
+
+		self assert: b <= (aText size +1).
+
+		 ]! !
 
 !BidiZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:10:40'!
 ascent
@@ -2717,17 +2738,19 @@ emptyAt: anIndex
 	^aZone
 ! !
 
-!BidiZone class methodsFor: 'instance creation' stamp: 'DF 5/22/2023 17:48:06'!
+!BidiZone class methodsFor: 'instance creation' stamp: 'DF 5/24/2023 20:54:36'!
 from: aToken direction: dir
 
 	aToken tag :: = #eot ifTrue:[^BidiNativeZone new].
 
 	aToken tag :: = #ws ifTrue:[^BidiSkipZone new].
+
+	aToken tag :: = #nl ifTrue:[^BidiSkipZone new].
 	
 	aToken isCompatibleWithDirection: dir :: 
 		ifTrue:[^BidiNativeZone new] ifFalse:[^BidiContraZone new].! !
 
-!BidiContraZone methodsFor: 'building' stamp: 'DF 5/22/2023 17:49:37'!
+!BidiContraZone methodsFor: 'building' stamp: 'DF 5/24/2023 20:52:51'!
 proceed: tokens at: index direction: dir
 
 	| i |
@@ -2764,7 +2787,7 @@ xcoord: aText direction: direction base: baseIndex at: index x: width
 	
 	^x + (direction * metrics width)! !
 
-!BidiNativeZone methodsFor: 'building' stamp: 'DF 5/22/2023 17:49:58'!
+!BidiNativeZone methodsFor: 'building' stamp: 'DF 5/24/2023 20:53:02'!
 proceed: tokens at: index direction: dir
 
 	| aToken |
@@ -2784,14 +2807,14 @@ build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretch
 	
 	^b! !
 
-!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 5/22/2023 17:46:51'!
+!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 5/24/2023 21:05:55'!
 proceed: tokens at: index direction: dir
 
-	| aToken |
+	| tag |
 	
-	aToken := tokens at:index.
+	tag := tokens at:index :: tag.
 	
-	^ aToken tag = #ws! !
+	^ tag = #ws or:[tag = #nl].! !
 
 !Edge methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:50:12'!
 connect: aSourceVertex to: aTargetVertex
