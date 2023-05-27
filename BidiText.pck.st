@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5772] on 26 May 2023 at 9:47:42 pm'!
+'From Cuis 6.0 [latest update: #5772] on 27 May 2023 at 9:24:49 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 100!
+!provides: 'BidiText' 1 102!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -356,12 +356,12 @@ addUndoMenuSectionTo: aMenu
 		
 	^aMenu.! !
 
-!BidiTextMorph methodsFor: 'menus' stamp: 'DF 5/20/2023 19:00:39'!
+!BidiTextMorph methodsFor: 'menus' stamp: 'DF 5/27/2023 21:21:58'!
 chooseAlignment
 	"This is a user command, and _should_ generate undo"
 
 	| aList reply |
-	aList := #(left center right).
+	aList := #(left center right justified).
 	reply := (SelectionMenu labelList: aList selections: aList) startUpMenu.
 	reply ifNil: [ ^self ].
 	
@@ -869,7 +869,7 @@ selection
 text: aText
 	text := aText! !
 
-!BidiEditor methodsFor: 'editing' stamp: 'DF 5/6/2023 13:33:35'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 5/27/2023 21:22:44'!
 align: aSymbol
 
 	| b e align aCommand |
@@ -880,6 +880,7 @@ align: aSymbol
 	aSymbol = #center ifTrue:[align := TextAlignment centered].
 	aSymbol = #left ifTrue:[align := TextAlignment leftFlush].
 	aSymbol = #right ifTrue:[align := TextAlignment rightFlush].
+	aSymbol = #justified ifTrue:[align := TextAlignment justified].
 	
 	aCommand := text commandForAddAttribute: align from: b to: e-1.
 	
@@ -1207,10 +1208,12 @@ draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width 
 		
 ! !
 
-!BidiLine methodsFor: 'drawing' stamp: 'DF 5/19/2023 18:01:11'!
+!BidiLine methodsFor: 'drawing' stamp: 'DF 5/27/2023 21:24:29'!
 xoffset: direction width: width alignment: alignment
 
 	alignment isNil ifTrue:[^0].
+
+	alignment = #justified ifTrue:[^0]. 
 	
 	alignment = #left and: [direction = 1] :: ifTrue:[^0]. 
 
@@ -1438,7 +1441,7 @@ nextPotentialBreak: tokens after: index
 	^i.
 ! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 21:07:49'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/27/2023 21:11:31'!
 potentialBreaks: tokens 
 
 	|  b breaks active |
@@ -1465,6 +1468,12 @@ potentialBreaks: tokens
 				r abs <= 1 ifTrue:[
 					breaks add: (BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: r ; to: b; yourself).  
 					keep add: b] ].
+			keep isEmpty "prevent active from becoming empty even at the cost of bad breaks"
+				ifTrue:[
+					active do:[:each | | r |
+						r := self skipRatio: tokens from: each to: b-1.
+						breaks add:(BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: r ; to: b; yourself) ].
+					keep add: b]. 
 			active := keep. 
 			b := self nextPotentialBreak: tokens after: b ].
 	
@@ -1846,10 +1855,10 @@ initialize
 	
 	height := 0.! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 5/26/2023 18:38:37'!
+!BidiParagraph methodsFor: 'building' stamp: 'DF 5/27/2023 21:20:37'!
 build: aText from: bIndex to: eIndex
 
-	| tokens breaks base |
+	| tokens breaker breaks base |
 
 	"A pargraph contains all characters until the first non line separator after
 	two or more line separators."
@@ -1862,7 +1871,9 @@ build: aText from: bIndex to: eIndex
 	
 	base := bIndex - 1.
 
-	breaks := BidiJustifiedLineBreaker new width: width; stretch: (1.2) ; shrink: (0.5); break: tokens.
+	breaker := alignment = #justified ifTrue:[BidiJustifiedLineBreaker new stretch: 1.2; shrink:0.5; yourself] ifFalse:[BidiRaggedLineBreaker new].
+	
+	breaks := breaker width: width; break: tokens.
 
 	lines := breaks collect:[:each | each buildLine: tokens base: base direction: direction ]. 
 	
@@ -1870,7 +1881,7 @@ build: aText from: bIndex to: eIndex
 	
 	^tokens last end! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 5/6/2023 13:12:39'!
+!BidiParagraph methodsFor: 'building' stamp: 'DF 5/27/2023 21:18:25'!
 determineAlignment: aText at: i
 	
 	| code |
@@ -1881,10 +1892,8 @@ determineAlignment: aText at: i
 	
 	code = BidiParagraph leftFlushCode ifTrue:[alignment := #left. ^self].
 	code = BidiParagraph rightFlushCode ifTrue:[alignment := #right. ^self].
-	code = BidiParagraph centeredCode ifTrue:[alignment := #center. ^self].
-	
-	"justified is not yet supported".
-	code = BidiParagraph justifiedCode ifTrue:[Transcript show: 'At position ', code asString, ' Justified text is not yet supported' ; cr].
+	code = BidiParagraph centeredCode ifTrue:[alignment := #center. ^self].	
+	code = BidiParagraph justifiedCode ifTrue:[alignment := #justified. ^self].
 	! !
 
 !BidiParagraph methodsFor: 'building' stamp: 'DF 5/6/2023 16:58:28'!
@@ -1947,9 +1956,9 @@ tokenize: aText from: bIndex to: eIndex
 	^tokens
 	! !
 
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/27/2023 19:11:39'!
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 5/27/2023 21:17:57'!
 alignment: aSymbol
-	"#left #right or #center"
+	"#justified #left #right or #center"
 	alignment := aSymbol! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:38:07'!
