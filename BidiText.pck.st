@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5772] on 27 May 2023 at 9:24:49 pm'!
+'From Cuis 6.0 [latest update: #5772] on 30 May 2023 at 9:32:03 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 102!
+!provides: 'BidiText' 1 103!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -1367,12 +1367,12 @@ break: tokens
 width: aNumber
 	width := aNumber! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/26/2023 21:45:21'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/30/2023 21:28:34'!
 break: tokens 
 
 	| edges indices graph vertices breaks last p path result t |
 	
-	edges := self potentialBreaks: tokens. 
+	edges := self potentialBreaks: tokens tolerance: 8. 
 	
 	indices := edges inject: Set new into:[:acc :each | acc add: each from. acc add:each to. acc].
 	
@@ -1406,14 +1406,16 @@ break: tokens
 	result := path reverse collect:[:each | breaks at: each].
 	
 	"add the last line, and create line breaks for as many newlines as there are at the end"
-	
+	"
 	t := result last to.
 	
 	[t <= tokens size and:[tokens at: t :: tag ~= #nl ] ] whileTrue:[t := t + 1].
 	
 	result add: (BidiLineBreak new from: result last to; to: t; yourself).
 	
-	t := t + 1.
+	t := t + 1."
+	
+	t := result last to.
 	 
 	[t <= tokens size and:[tokens at: t :: tag = #nl ] ] 
 		whileTrue:[
@@ -1441,8 +1443,8 @@ nextPotentialBreak: tokens after: index
 	^i.
 ! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/27/2023 21:11:31'!
-potentialBreaks: tokens 
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/30/2023 21:06:58'!
+potentialBreaks: tokens tolerance: tol
 
 	|  b breaks active |
 	
@@ -1465,17 +1467,20 @@ potentialBreaks: tokens
 				r := self skipRatio: tokens from: each to: b-1.
 				r >= -1 
 					ifTrue:[keep add: each]. 
-				r abs <= 1 ifTrue:[
+				-1 <= r and:[ r <= tol] :: ifTrue:[
 					breaks add: (BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: r ; to: b; yourself).  
 					keep add: b] ].
 			keep isEmpty "prevent active from becoming empty even at the cost of bad breaks"
-				ifTrue:[
+				ifTrue:["
 					active do:[:each | | r |
 						r := self skipRatio: tokens from: each to: b-1.
 						breaks add:(BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: r ; to: b; yourself) ].
-					keep add: b]. 
+					keep add: b"]. 
 			active := keep. 
 			b := self nextPotentialBreak: tokens after: b ].
+	
+	active do:[ :each |
+		breaks add:(BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: 0 ; to: b-1; yourself)		].
 	
 	^breaks
 	
@@ -2868,27 +2873,29 @@ initialize
 	vertices := OrderedCollection new.
 ! !
 
-!Graph methodsFor: 'as yet unclassified' stamp: 'DF 5/22/2023 19:19:10'!
-min: anOrderedCollection fun: aBlock
+!Graph methodsFor: 'as yet unclassified' stamp: 'DF 5/30/2023 21:19:50'!
+min: aSet fun: aBlock
 
 	"Answer the element with the minimal result when evaluating aBlock on all the elements of the receiver."
 	| key vertex |
 	
-	anOrderedCollection emptyCheck.
+	aSet emptyCheck.
 	
-	vertex := anOrderedCollection first.
+	vertex := aSet anyOne.
 	key :=  aBlock value: vertex.
 	
-	anOrderedCollection do: [:each | | x | x := aBlock value: each. x < key ifTrue:[key := x. vertex := each] ].
+	aSet do: [:each | | x | x := aBlock value: each. x < key ifTrue:[key := x. vertex := each] ].
 	
 	^ vertex! !
 
-!Graph methodsFor: 'as yet unclassified' stamp: 'DF 5/22/2023 19:18:40'!
+!Graph methodsFor: 'as yet unclassified' stamp: 'DF 5/30/2023 21:20:06'!
 shortestPathFrom: originVertex to: destVertex weightFunction: aBlock
 
 	| unvisited current |
 	
-	unvisited := vertices copy.
+	unvisited := Set new.
+	
+	unvisited addAll: vertices.
 	
 	vertices do:[:each | each distance: Float fmax. each prev:nil. ].
 	
@@ -2899,10 +2906,11 @@ shortestPathFrom: originVertex to: destVertex weightFunction: aBlock
 	[unvisited notEmpty]
 		whileTrue:[
 			current := self min: unvisited fun: [:each | each distance].
-			current adj do:[:each | | d v |
+			current adj do:[:each | | d v | 
 				v := each to.
-				d := current distance + (aBlock value: each weight).
-				d < v distance ifTrue:[v distance: d]. v prev: each. ].
+				unvisited includes: v :: ifTrue:[ 
+					d := current distance + (aBlock value: each weight).
+					d < v distance ifTrue:[v distance: d]. v prev: each  ] ].
 			unvisited remove: current ].
 			
 ! !
