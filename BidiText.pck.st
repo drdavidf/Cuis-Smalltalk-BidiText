@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5772] on 30 May 2023 at 9:32:03 pm'!
+'From Cuis 6.0 [latest update: #5772] on 3 June 2023 at 8:42:58 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 103!
+!provides: 'BidiText' 1 106!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -46,7 +46,7 @@ BidiFork class
 
 !classDefinition: #BidiLine category: 'BidiText'!
 Object subclass: #BidiLine
-	instanceVariableNames: 'metrics zones'
+	instanceVariableNames: 'metrics zones newlineTerminated'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -56,7 +56,7 @@ BidiLine class
 
 !classDefinition: #BidiLineBreak category: 'BidiText'!
 Object subclass: #BidiLineBreak
-	instanceVariableNames: 'from to'
+	instanceVariableNames: 'from to newlineTerminated'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -961,7 +961,7 @@ paste: aText
 	
 	^delta ! !
 
-!BidiEditor methodsFor: 'editing' stamp: 'DF 5/6/2023 18:09:52'!
+!BidiEditor methodsFor: 'editing' stamp: 'DF 6/2/2023 18:12:33'!
 replaceSelectionWith: aText
 
 	| b e aCommand |
@@ -971,7 +971,7 @@ replaceSelectionWith: aText
 	
 	aCommand := text commandForReplaceFrom: b to: e-1  with: aText asUnicodeStringOrText.
 	
-	b = e and:[ history isEmpty not] and: [ history peekLast stopPosition = e ] :: 
+	b = e and:[ history isEmpty not] and: [ history peekLast isKindOf: TextReplaceCommand] and: [ history peekLast stopPosition = e ] :: 
 		ifTrue:[
 			history peekLast appendToNew: aText ]
 		ifFalse:[
@@ -1148,6 +1148,16 @@ extent: aPoint
 height
 	^metrics height! !
 
+!BidiLine methodsFor: 'accessing' stamp: 'DF 6/3/2023 17:17:05'!
+newlineTerminated
+
+	^newlineTerminated ! !
+
+!BidiLine methodsFor: 'accessing' stamp: 'DF 6/3/2023 17:17:50'!
+newlineTerminated: aBoolean
+
+	newlineTerminated := aBoolean! !
+
 !BidiLine methodsFor: 'accessing' stamp: 'DF 5/19/2023 17:56:38'!
 width
 	^metrics width! !
@@ -1287,10 +1297,16 @@ xcoord: aText direction: direction base: baseIndex at: index width: width alignm
 
 		! !
 
-!BidiLine methodsFor: 'initialization' stamp: 'DF 5/19/2023 18:01:33'!
+!BidiLine methodsFor: 'initialization' stamp: 'DF 6/3/2023 17:16:20'!
 initialize
 
-	zones := OrderedCollection new.! !
+	zones := OrderedCollection new.
+	
+	newlineTerminated := false.! !
+
+!BidiLine methodsFor: 'testing' stamp: 'DF 6/3/2023 15:27:46'!
+isEmpty
+	^self beginIndex = self endIndex! !
 
 !BidiLine class methodsFor: 'instance creation' stamp: 'DF 4/15/2023 13:57:28'!
 emptyAt: anIndex
@@ -1303,12 +1319,13 @@ emptyAt: anIndex
 	
 	^aLine! !
 
-!BidiLineBreak methodsFor: 'as yet unclassified' stamp: 'DF 5/22/2023 18:47:38'!
+!BidiLineBreak methodsFor: 'as yet unclassified' stamp: 'DF 6/3/2023 17:18:02'!
 buildLine: tokens base: baseIndex direction: direction
 
 	| line |
 	
 	line := BidiLine new.
+	line newlineTerminated: newlineTerminated. 
 	line build: tokens base: baseIndex from: from to: to direction: direction ratio: 0.
 
 	^line! !
@@ -1320,6 +1337,16 @@ from
 !BidiLineBreak methodsFor: 'as yet unclassified' stamp: 'DF 5/20/2023 15:58:11'!
 from: anIndex
 	from := anIndex! !
+
+!BidiLineBreak methodsFor: 'as yet unclassified' stamp: 'DF 6/3/2023 17:12:36'!
+initialize
+
+	newlineTerminated := false.! !
+
+!BidiLineBreak methodsFor: 'as yet unclassified' stamp: 'DF 6/3/2023 17:13:12'!
+setAsNewlineTerminated
+
+	newlineTerminated := true! !
 
 !BidiLineBreak methodsFor: 'as yet unclassified' stamp: 'DF 5/20/2023 15:58:21'!
 to
@@ -1367,7 +1394,7 @@ break: tokens
 width: aNumber
 	width := aNumber! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/30/2023 21:28:34'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 6/3/2023 18:31:19'!
 break: tokens 
 
 	| edges indices graph vertices breaks last p path result t |
@@ -1405,21 +1432,13 @@ break: tokens
 		
 	result := path reverse collect:[:each | breaks at: each].
 	
-	"add the last line, and create line breaks for as many newlines as there are at the end"
-	"
-	t := result last to.
+	"create line breaks for as many newlines as there are at the end"
 	
-	[t <= tokens size and:[tokens at: t :: tag ~= #nl ] ] whileTrue:[t := t + 1].
+	t := result last to + 1.
 	
-	result add: (BidiLineBreak new from: result last to; to: t; yourself).
-	
-	t := t + 1."
-	
-	t := result last to.
-	 
 	[t <= tokens size and:[tokens at: t :: tag = #nl ] ] 
 		whileTrue:[
-			result add: (BidiLineBreak new from: t ; to: t; yourself).
+			result add: (BidiLineBreak new from: t ; to: t; setAsNewlineTerminated; yourself).
 			t := t + 1].
 	
 	^result	
@@ -1443,7 +1462,7 @@ nextPotentialBreak: tokens after: index
 	^i.
 ! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/30/2023 21:06:58'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 6/3/2023 18:31:59'!
 potentialBreaks: tokens tolerance: tol
 
 	|  b breaks active |
@@ -1471,16 +1490,18 @@ potentialBreaks: tokens tolerance: tol
 					breaks add: (BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: r ; to: b; yourself).  
 					keep add: b] ].
 			keep isEmpty "prevent active from becoming empty even at the cost of bad breaks"
-				ifTrue:["
-					active do:[:each | | r |
-						r := self skipRatio: tokens from: each to: b-1.
-						breaks add:(BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: r ; to: b; yourself) ].
-					keep add: b"]. 
+				ifTrue:[self halt]. 
 			active := keep. 
 			b := self nextPotentialBreak: tokens after: b ].
 	
-	active do:[ :each |
-		breaks add:(BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: 0 ; to: b-1; yourself)		].
+	"find the point after which there are only newlines. "
+	
+	[b > 1 and:[tokens at: b - 1 :: tag = #nl] ] whileTrue:[b := b - 1].
+	
+	active do:[ :each | | r |
+		r := self skipRatio: tokens from: each to: b-1.
+		r >= 0 ifTrue:[ "add any breaks that do not require shrinking. we don't care about stretching because this is the last line"
+			breaks add:(BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: 0 ; to: b; yourself)		] ].
 	
 	^breaks
 	
@@ -1521,7 +1542,7 @@ skipRatio: tokens from: begin to: end
 stretch: aNumber
 	stretch := aNumber! !
 
-!BidiRaggedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/22/2023 18:30:19'!
+!BidiRaggedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 6/3/2023 17:15:09'!
 break: tokens 
 
 	| b w breaks |
@@ -1531,7 +1552,7 @@ break: tokens
 	b := 1.
 	
 	[ b <= tokens size ] 
-		whileTrue:[ | p pp |
+		whileTrue:[ | p pp aBreak |
 			pp := b.
 			p := self nextBreak: tokens after: pp.
 			w := self width: tokens from: pp to: p.
@@ -1543,9 +1564,14 @@ break: tokens
 					w := w + (self width: tokens from:pp to:p) ].
 			
 			w > width ifTrue:[p := pp].
-				
-			breaks add:(BidiLineBreak new from: b ; to: p ; yourself).
-			p <= tokens size and:[tokens at:p :: tag = #nl] :: ifTrue:[p := p + 1]. "skip the newline character"
+			
+			aBreak := BidiLineBreak new from: b ; to: p ; yourself.
+			
+			breaks add:aBreak.
+			p <= tokens size and:[tokens at:p :: tag = #nl] :: 
+				ifTrue:[
+					aBreak setAsNewlineTerminated. 
+					p := p + 1]. "skip the newline character"
 			b := p ]. 
 	
 	^breaks
@@ -1664,7 +1690,24 @@ index: aText at: aPoint
 	^ c + paragraphs last endIndex.
 ! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 22:56:32'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 6/3/2023 19:39:53'!
+lastParagraph
+
+	| i c y |
+	
+	i := 1.
+	
+	c := 0.
+	
+	y := 0.
+	
+	[i < paragraphs size ]
+		whileTrue:[c := c + (paragraphs at:i :: count). y := y + (paragraphs at:i :: height). i := i + 1.   ].
+		
+	^ { i . c . y }
+	! !
+
+!BidiPage methodsFor: 'translating' stamp: 'DF 6/3/2023 17:38:35'!
 paragraphAt: charIndex
 
 	| i c y |
@@ -1701,7 +1744,7 @@ paragraphsFrom: bIndex to: eIndex do: aBlock
 
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/21/2023 12:52:10'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 6/3/2023 19:52:54'!
 point: aText at: absoluteIndex
 
 	| i c y icy |
@@ -1715,7 +1758,13 @@ point: aText at: absoluteIndex
 	y := icy at:3.
 
 	i = (paragraphs size + 1) "point is past the last character in the text"
-		ifTrue:[ ^ (paragraphs last lastPoint: aText base: c) translatedBy: (0@y) ].
+		ifTrue:[
+			paragraphs isEmpty
+				ifTrue:[ | metrics |
+					metrics := BidiTextMetrics empty.
+					^0@(0 - metrics ascent) extent: 0@(metrics ascent + metrics descent)					]
+				ifFalse:[
+					^(paragraphs last lastPoint: aText base: c) translatedBy: (0@y) ] ].
 
 	self assert: i <= paragraphs size.
 	
@@ -1757,33 +1806,43 @@ rectangles: aText from: bIndex to: eIndex
 			
 	! !
 
-!BidiPage methodsFor: 'building' stamp: 'DF 5/20/2023 16:48:52'!
+!BidiPage methodsFor: 'building' stamp: 'DF 6/3/2023 17:53:00'!
 build: aText
 
 	paragraphs removeAll.
 	
 	paragraphs add: BidiParagraph empty. 
 	
-	self build: aText from: 1 to: 1 delta: aText size.	! !
+	self build: aText from: 0 to: 0 delta: aText size.	! !
 
-!BidiPage methodsFor: 'building' stamp: 'DF 5/22/2023 17:38:44'!
+!BidiPage methodsFor: 'building' stamp: 'DF 6/3/2023 20:35:15'!
 build: aText from: bIndex to:eIndex delta: delta
 
-	| b e bc ec prefix fresh suffix |
+	| b e bc ec pb pe prefix fresh suffix |
 	
+	paragraphs isEmpty ifTrue:[paragraphs add:(BidiParagraph empty)].
+		
 	bc := self paragraphAt: bIndex.
+	
+	(bc at:1) > paragraphs size ifTrue:[bc := self lastParagraph].
 	
 	ec := self paragraphAt: eIndex.
 
-	b := paragraphs at: (bc at:1) :: beginIndex + (bc at:2).
-
-	e := paragraphs at: (ec at:1) :: endIndex + (ec at:2).
+	(ec at:1 ) > paragraphs size ifTrue:[ ec := self lastParagraph].
 	
-	prefix := paragraphs copyFrom: 1 to: (bc at:1) - 1.
+	pb := bc at:1.
+	
+	pe := ec at:1.
+	
+	prefix := paragraphs copyFrom: 1 to: pb - 1.
+
+	b := paragraphs at: pb :: beginIndex + (bc at:2).
+
+	e := paragraphs at: pe :: terminalIndex + (ec at:2).	
 	
 	fresh := self parse: aText from: b to: e + delta direction: 1.
 	
-	suffix := paragraphs copyFrom: (ec at:1) + 1 to: paragraphs size.
+	suffix := paragraphs copyFrom: pe + 1 to: paragraphs size.
 	
 	paragraphs := prefix.
 	
@@ -1970,17 +2029,37 @@ alignment: aSymbol
 beginIndex
 	^lines first beginIndex! !
 
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 5/26/2023 21:05:08'!
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 6/3/2023 17:27:31'!
 count
-	^self endIndex - self beginIndex + 1 " we add 1 to account to the new line character that ends every paragraph but the last."! !
+	^self terminalIndex - self beginIndex "+ 1" " we add 1 to account to the new line character that ends every paragraph but the last."! !
 
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 20:38:13'!
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 6/3/2023 17:23:27'!
 endIndex
-	^lines last endIndex! !
+
+	| aLine |
+	
+	aLine := lines last.
+	
+	^aLine endIndex
+	
+	
+! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/11/2023 16:47:36'!
 height
 	^height! !
+
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 6/3/2023 17:26:29'!
+terminalIndex
+
+	| aLine |
+	
+	aLine := lines last.
+
+	^aLine newlineTerminated ifTrue:[aLine endIndex + 1] ifFalse:[aLine endIndex].
+	
+	
+! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 19:58:04'!
 width: anInteger
@@ -2083,7 +2162,7 @@ index: aText base: anInteger at: aPoint
 	^ lines last endIndex.
 	! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/15/2023 19:12:44'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 6/3/2023 20:42:01'!
 lastPoint: aText base: baseIndex 
 
 	| x aLine |
@@ -2092,27 +2171,41 @@ lastPoint: aText base: baseIndex
 	
 	x := direction = 1 ifTrue:[aLine width] ifFalse:[width - aLine width].
 	
-	^x@(0 - aLine ascent) extent: 0@(aLine ascent + aLine descent)! !
+	^aLine newlineTerminated 
+		ifTrue:[
+			0@(aLine height - aLine ascent) extent: 0@(aLine ascent + aLine descent)]
+		ifFalse:[
+			x@(0 - aLine ascent) extent: 0@(aLine ascent + aLine descent)].
+	! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 4/12/2023 22:47:22'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 6/3/2023 20:37:06'!
 lineAt: offset
 
-	|i y |
-	
+	| i y |
+
 	i := 1.
 	y := 0.
 	
 	[i <= lines size and:[lines at:i :: endIndex < offset]  ] 
 		whileTrue:[y := y + (lines at:i :: height). i := i + 1. ].
 	
-	" When the offset is equal to endIndex we have two alternatives: either
-	the next line starts with the same offset, in which case we should answer
-	the next line, or if it doesn't, we should chose this line. If this is the last
-	line in the paragraph we always chose it because the next line will start a 
-	new paragraph and therefore its beginIndex will be different."
+	" When the offset is equal to endIndex we have three alternatives: 
+	
+	1. This is the last line in the last paragraph.
+	2. This is the last line in the paragraph but the paragraph is not the last.
+	3. This is the last line in the middle of the paragraph.
+	
+	1. If the line ends with a newline codepoint then we should answer a point that is 
+	one line below the current line, 	otherwise we should answer the end of the current line.
+
+	2. We answer this line because the next line will start a new paragraph and therefore 
+	its beginIndex will be different.
+		
+	3. If the next line starts with the same offset we answer 	the next line, or if it doesn't, 
+	we answer this line. "
 	
 	self assert: i <= (lines size + 1).
-	
+
 	i = lines size ifTrue:[^ { i.y }].
 	
 	lines at:i :: endIndex = offset and: [ lines at: i+1 :: beginIndex = offset ] :: 
