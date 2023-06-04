@@ -1,8 +1,18 @@
-'From Cuis 6.0 [latest update: #5772] on 3 June 2023 at 8:42:58 pm'!
+'From Cuis 6.0 [latest update: #5753] on 4 June 2023 at 12:41:26 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 106!
+!provides: 'BidiText' 1 108!
 SystemOrganization addCategory: 'BidiText'!
 
+
+!classDefinition: #BidiScrollableTextMorph category: 'BidiText'!
+PluggableScrollPane subclass: #BidiScrollableTextMorph
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'BidiScrollableTextMorph class' category: 'BidiText'!
+BidiScrollableTextMorph class
+	instanceVariableNames: ''!
 
 !classDefinition: #BidiTextMorph category: 'BidiText'!
 BoxedMorph subclass: #BidiTextMorph
@@ -245,6 +255,45 @@ I am a zone whose writing direction goes against my line's paragraph writing dir
 !BidiNativeZone commentStamp: '<historical>' prior: 0!
 I am a zone whose writing direction is the same as my line's paragraph writing direction!
 
+!BidiScrollableTextMorph methodsFor: 'as yet unclassified' stamp: 'DF 6/4/2023 12:05:17'!
+build
+
+	| aBidiTextMorph |
+	
+	aBidiTextMorph := BidiTextMorph new morphExtent: self viewableExtent ; text: model; yourself.
+	
+	aBidiTextMorph morphHeight: (aBidiTextMorph textHeight max: aBidiTextMorph morphHeight).
+	
+	self scroller: aBidiTextMorph.
+	
+	aBidiTextMorph when: #keystroke send: #showCursor: to: self.
+	
+	! !
+
+!BidiScrollableTextMorph methodsFor: 'as yet unclassified' stamp: 'DF 6/4/2023 09:52:38'!
+extentChanged: oldExtent
+
+	self build! !
+
+!BidiScrollableTextMorph methodsFor: 'as yet unclassified' stamp: 'DF 6/4/2023 12:37:19'!
+showCursor: oldpos
+
+	"ensure that cursor rect is inside the viewable area "
+
+	| rect delta |
+	
+	rect := scroller cursorRectangle.
+
+	delta := 0 @ (oldpos origin y - rect origin y).
+		
+	rect corner y > scroller morphHeight "The scroller's extent is too short"
+		ifTrue:[scroller morphExtent: scroller morphExtent - delta].
+	
+	rect corner y > (self morphHeight - scroller topLeftInOwner y) or:[ rect origin y < (0 - scroller topLeftInOwner y) ] :: 
+		ifTrue:[self scrollBy: delta].
+
+! !
+
 !BidiTextMorph methodsFor: 'clipboard' stamp: 'DF 4/8/2023 16:26:30'!
 copySelection
 
@@ -398,17 +447,14 @@ getMenu
 
 ! !
 
-!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 4/27/2023 22:26:18'!
+!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 6/4/2023 12:07:18'!
 moveDown: aKeyboardEvent direction: dir
 
-	| p r0 r |
+	| p |
 
 	p := page below: text at: editor point.
 	p ifNotNil: [ 
-		r0 := page point: text at: editor point.
 		editor movePointTo: p.
-		r := page point: text at: p.
-		r corner y > (owner morphExtent y - self topLeftInOwner y) ifTrue:[ owner scrollBy: 0 @ r0 origin y - r origin y ].
 		aKeyboardEvent shiftPressed 
 			ifFalse:[	editor moveMarkTo: editor point]. 
 		self redrawNeeded ].
@@ -432,18 +478,14 @@ moveRight: aKeyboardEvent direction: dir
 		 ifFalse:[	editor moveMarkTo: editor point]. 
 	self redrawNeeded. ^self! !
 
-!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 4/28/2023 10:53:44'!
+!BidiTextMorph methodsFor: 'moving the cursor' stamp: 'DF 6/4/2023 12:11:45'!
 moveUp: aKeyboardEvent direction: dir
 
-	| p r0 r |
+	| p |
 	
 	p := page above: text at: editor point.
 	p ifNotNil: [ 
-		r0 := page point: text at: editor point.
 		editor movePointTo: p.
-		r := page point: text at: p.
-		r origin y < (0 - self topLeftInOwner y) ifTrue:[ owner scrollBy: 0 @ r0 origin y - r origin y ].
-
 		aKeyboardEvent shiftPressed 
 			ifFalse:[	editor moveMarkTo: editor point]. 
 		self redrawNeeded ].
@@ -482,41 +524,8 @@ performEditingAction: aBlock
 	self redrawNeeded.	
 ! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/11/2023 12:36:05'!
-doubleClick: aMouseButtonEvent localPosition: localEventPosition
-	
-	"first move the mark back until a separator or beginning of text"
-	
-	[ editor mark = (text size + 1) or: [editor mark > 1 and: [ text at:editor mark :: isSeparator not ] ] ]
-		whileTrue:[editor moveMarkTo: editor mark - 1 ].
-		
-	"self assert: editor mark <= text size and: [ editor mark = 1 or: [ text at:editor mark :: isSeparator ] ] "
-	
-	editor mark > 1 ifTrue:[editor moveMarkTo: editor mark + 1].
-		
-	"then move the point forward until a separator or end of text"
-	
-	[ editor point = 1 or: [ editor point < (text size + 1) and:[ text at:editor point :: isSeparator not ] ] ]
-		whileTrue:[editor movePointTo: editor point + 1].
-		
-	self redrawNeeded.
-		! !
-
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 20:46:01'!
-handlesKeyboard
-
-	^self visible! !
-
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 19:05:48'!
-handlesMouseDown: aMouseButtonEvent
-	^true! !
-
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 21:12:14'!
-handlesMouseOver: aMorphicEvent
-	^self visible ! !
-
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 5/7/2023 22:06:36'!
-keyStroke: aKeyboardEvent
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 6/4/2023 11:49:25'!
+doKeyStroke: aKeyboardEvent
 
 	| dir char |
 	
@@ -558,6 +567,55 @@ keyStroke: aKeyboardEvent
 	aKeyboardEvent controlKeyPressed and:[char = $Z] :: ifTrue:[^self redo].
 
 	self performEditingAction: [editor insert: char].
+	
+	
+	! !
+
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/11/2023 12:36:05'!
+doubleClick: aMouseButtonEvent localPosition: localEventPosition
+	
+	"first move the mark back until a separator or beginning of text"
+	
+	[ editor mark = (text size + 1) or: [editor mark > 1 and: [ text at:editor mark :: isSeparator not ] ] ]
+		whileTrue:[editor moveMarkTo: editor mark - 1 ].
+		
+	"self assert: editor mark <= text size and: [ editor mark = 1 or: [ text at:editor mark :: isSeparator ] ] "
+	
+	editor mark > 1 ifTrue:[editor moveMarkTo: editor mark + 1].
+		
+	"then move the point forward until a separator or end of text"
+	
+	[ editor point = 1 or: [ editor point < (text size + 1) and:[ text at:editor point :: isSeparator not ] ] ]
+		whileTrue:[editor movePointTo: editor point + 1].
+		
+	self redrawNeeded.
+		! !
+
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 20:46:01'!
+handlesKeyboard
+
+	^self visible! !
+
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 19:05:48'!
+handlesMouseDown: aMouseButtonEvent
+	^true! !
+
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 21:12:14'!
+handlesMouseOver: aMorphicEvent
+	^self visible ! !
+
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 6/4/2023 12:04:54'!
+keyStroke: aKeyboardEvent
+
+	| cpos |
+	
+	cpos := page point: text at: editor point.
+	
+	self doKeyStroke: aKeyboardEvent.
+	
+	self triggerEvent: #keystroke with: cpos
+	
+	
 	! !
 
 !BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 21:13:41'!
@@ -593,8 +651,9 @@ mouseButton2Activity
 		menu popUpInWorld: self world.
 		"menu invokeModal" ]! !
 
-!BidiTextMorph methodsFor: 'events' stamp: 'DF 4/6/2023 21:13:13'!
+!BidiTextMorph methodsFor: 'events' stamp: 'DF 6/4/2023 11:41:46'!
 mouseEnter: evt
+
 	evt hand newKeyboardFocus: self! !
 
 !BidiTextMorph methodsFor: 'events' stamp: 'DF 4/12/2023 09:43:50'!
@@ -686,6 +745,12 @@ initialize
 	
 	! !
 
+!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 6/4/2023 11:52:05'!
+cursorRectangle
+
+	^page point: text at: editor point.
+! !
+
 !BidiTextMorph methodsFor: 'accessing' stamp: 'DF 5/20/2023 19:01:07'!
 text: aText
 
@@ -694,6 +759,11 @@ text: aText
 	editor text: text.
 	
 	page build: text.! !
+
+!BidiTextMorph methodsFor: 'accessing' stamp: 'DF 6/4/2023 09:43:04'!
+textHeight
+
+	^page height! !
 
 !BidiTextMorph methodsFor: 'history' stamp: 'DF 4/11/2023 15:05:50'!
 offerUndoHistory! !
@@ -1602,6 +1672,11 @@ width: tokens from: bIndex to: e
 	
 	^w.! !
 
+!BidiPage methodsFor: 'accessing' stamp: 'DF 6/4/2023 09:38:21'!
+height
+
+	^paragraphs inject:0 into:[:acc :each | acc + each height].! !
+
 !BidiPage methodsFor: 'accessing' stamp: 'DF 4/11/2023 15:46:43'!
 width: anInteger
 	width := anInteger! !
@@ -2509,6 +2584,13 @@ of: aText from: begin to: end
 	
 	^ aBidiTextMetrics ! !
 
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
+shrink: aString
+
+	end := end - 1.
+	
+	metrics := BidiTextMetrics of: aString from: begin to: end! !
+
 !BidiToken methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:58:47'!
 begin
 	^begin! !
@@ -2568,13 +2650,6 @@ isSeparator
 
 	^tag = #ws or:[tag = #nl]
 	! !
-
-!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
-shrink: aString
-
-	end := end - 1.
-	
-	metrics := BidiTextMetrics of: aString from: begin to: end! !
 
 !BidiToken class methodsFor: 'instance creation' stamp: 'DF 5/20/2023 12:58:46'!
 nextContra: aString at: index direction: dir
