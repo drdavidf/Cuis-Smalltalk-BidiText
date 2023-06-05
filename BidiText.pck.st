@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5753] on 4 June 2023 at 12:41:26 pm'!
+'From Cuis 6.0 [latest update: #5753] on 5 June 2023 at 3:28:03 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 108!
+!provides: 'BidiText' 1 109!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -16,7 +16,7 @@ BidiScrollableTextMorph class
 
 !classDefinition: #BidiTextMorph category: 'BidiText'!
 BoxedMorph subclass: #BidiTextMorph
-	instanceVariableNames: 'text editor page yoffset'
+	instanceVariableNames: 'text editor page yoffset leftMargin rightMargin'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -240,7 +240,7 @@ I represent a continous area of text that occupies a rectangle, representing a s
 My indices are relative to the beginning of my paragraph.!
 
 !BidiPage commentStamp: '<historical>' prior: 0!
-I represent a continous area of text composed of a collection of paragraphs.!
+I represent a continous area of text composed of a sequence of paragraphs.!
 
 !BidiParagraph commentStamp: '<historical>' prior: 0!
 I represent a continous area of text that has the same primary writing direction.!
@@ -680,23 +680,25 @@ debugRects
 
 ! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/11/2023 18:23:09'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 6/5/2023 15:25:45'!
 drawCursorOn: aCanvas
 
 	| aRect |
 	
 	aRect := page point: text at: editor point.
+	
+	aRect := aRect translatedBy: leftMargin @0.
 		
 	aCanvas line: aRect origin to: aRect corner width: 2 color: Color black.! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/22/2023 20:16:03'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 6/5/2023 15:20:09'!
 drawOn: aCanvas
 
 	super drawOn: aCanvas.
 
 	self drawSelectionOn: aCanvas.
 	
-	page draw: text on: aCanvas clip: self topLeftInOwner y @ owner morphExtent y.
+	page draw: text on: aCanvas at: leftMargin clip: self topLeftInOwner y @ owner morphExtent y.
 	
 	self drawCursorOn: aCanvas.
 ! !
@@ -717,30 +719,36 @@ drawSelectionOn: aCanvas
 	rects do:[:each | aCanvas fillRectangle: each color: Color lightBlue ].
 ! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 5/21/2023 09:47:47'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 6/5/2023 10:16:57'!
 extentChanged: oldExtent
 	
-	page width: self morphWidth ; build: text ! !
+	"We need to rebuild the page only if the extent's width changes. "
+	
+	page width: self morphWidth - leftMargin - rightMargin ; build: text ! !
 
-!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 5/22/2023 18:10:48'!
+!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 6/5/2023 15:26:35'!
 initialize
 
 	super initialize.
 	
-	color := Color lightOrange.
+	color := Color fromHexString: '#ffdeb1'.
 	
 	text := '' asText.
 	
 	editor := BidiEditor new.
 	
+	yoffset := 0.
+	
+	leftMargin := 5.
+	
+	rightMargin := 8.
+
 	editor text: text.
 	
 	page := BidiPage new.
 	
-	page width: 640.
-	
-	yoffset := 0.
-	
+	page width: 640 - leftMargin - rightMargin.
+		
 	page build: text.
 	
 	! !
@@ -786,7 +794,7 @@ undo
 	
 	self redrawNeeded.! !
 
-!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 5/23/2023 08:48:05'!
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/4/2023 13:45:26'!
 example
 
 	"self example"
@@ -807,7 +815,7 @@ example
 
 Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَرَبِيّ, ʿarabī [ˈʕarabiː] or [ʕaraˈbij]) (sometimes arguably, the Arabic languages) is a Semitic language spoken primarily across the Arab world.[6] Having emerged in the 1st century, it is named after the Arab people; the term "Arab" was initially used to describe those living in the Arabian Peninsula, as perceived by geographers from ancient Greece.[7]'.
 
-	PluggableScrollPane new scroller: (BidiTextMorph new morphExtent:1024@1600; text:s asText); morphExtent: 1064@768 ; openInWorld
+BidiScrollableTextMorph new model: s asUnicodeString asText ; morphExtent:800@600;  openInWorld
 	! !
 
 !BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 5/26/2023 18:45:19'!
@@ -1271,16 +1279,18 @@ emptyAt: anIndex
 	
 ! !
 
-!BidiLine methodsFor: 'drawing' stamp: 'DF 4/27/2023 19:09:39'!
-draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width alignment: alignment  
+!BidiLine methodsFor: 'drawing' stamp: 'DF 6/5/2023 15:13:29'!
+draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction width: width alignment: alignment  
 
-	| x xoffset |
+	| x xoffset y |
+	
+	y := aPoint y.
 	
 	x := direction = 1 ifTrue:[0] ifFalse:[width].
 	
 	xoffset := self xoffset: direction width: width alignment: alignment.
 	
-	x := xoffset * direction + x.
+	x := xoffset * direction + x + aPoint x.
 	
 	zones do:[:each |
 		each draw: aText from: baseIndex on: aCanvas at: (x@y) direction: direction.
@@ -1819,7 +1829,7 @@ paragraphsFrom: bIndex to: eIndex do: aBlock
 
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 6/3/2023 19:52:54'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 6/5/2023 09:56:46'!
 point: aText at: absoluteIndex
 
 	| i c y icy |
@@ -1837,7 +1847,7 @@ point: aText at: absoluteIndex
 			paragraphs isEmpty
 				ifTrue:[ | metrics |
 					metrics := BidiTextMetrics empty.
-					^0@(0 - metrics ascent) extent: 0@(metrics ascent + metrics descent)					]
+					^0@(metrics height - metrics ascent) extent: 0@(metrics ascent + metrics descent)					]
 				ifFalse:[
 					^(paragraphs last lastPoint: aText base: c) translatedBy: (0@y) ] ].
 
@@ -1951,8 +1961,8 @@ initialize
 	
 	width := 640.! !
 
-!BidiPage methodsFor: 'drawing' stamp: 'DF 5/26/2023 21:09:51'!
-draw: aText on: aCanvas clip: yh
+!BidiPage methodsFor: 'drawing' stamp: 'DF 6/5/2023 15:20:07'!
+draw: aText on: aCanvas at: x clip: yh
 
 	| i y |
 	
@@ -1962,27 +1972,29 @@ draw: aText on: aCanvas clip: yh
 	i := 0.
 	
 	paragraphs do:[:each |
-		each draw: aText from: i on: aCanvas at: y clip: yh.
+		each draw: aText from: i on: aCanvas at: x@y clip: yh.
 		y := y + each height.
 		i := i + each count].
 ! !
 
-!BidiParagraph methodsFor: 'drawing' stamp: 'DF 4/27/2023 19:30:49'!
-draw: aText from: baseIndex on: aCanvas at: y0 clip: yh 
+!BidiParagraph methodsFor: 'drawing' stamp: 'DF 6/5/2023 15:16:57'!
+draw: aText from: baseIndex on: aCanvas at: aPoint clip: yh 
 
-	| y |
+	| p y0 |
 
+	y0 := aPoint y.
+	
 	y0 + yh x + height < 0 ifTrue:[^self].
 
 	y0 + yh x > yh y ifTrue:[^self].
 	
 	lines isEmpty ifTrue:[^self].
 	
-	y := y0.
-	
+	p := aPoint x @ y0.
+		
 	lines do:[:each |
-		y := y + each height.
-		each draw: aText from: baseIndex on: aCanvas at: y direction: direction width: width alignment: alignment		].
+		p := p + (0 @ each height).
+		each draw: aText from: baseIndex on: aCanvas at: p direction: direction width: width alignment: alignment		].
 	! !
 
 !BidiParagraph methodsFor: 'initialization' stamp: 'DF 4/11/2023 16:47:43'!
@@ -2780,7 +2792,7 @@ proceed: tokens at: index direction: dir
 
 	^self subclassResponsibility ! !
 
-!BidiZone methodsFor: 'drawing' stamp: 'DF 5/26/2023 21:39:47'!
+!BidiZone methodsFor: 'drawing' stamp: 'DF 6/5/2023 10:07:24'!
 draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 	| x y b e j font color r s extent |
@@ -2793,7 +2805,7 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 	y := aPoint y.
 	
-	aCanvas frameRectangle: r borderWidth:1 color: Color gray.
+	aCanvas frameRectangle: r borderWidth:1 color: (Color fromHexString: '#ffb044').
 	
 	b := baseIndex + beginIndex.
 	
