@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5753] on 5 June 2023 at 3:28:03 pm'!
+'From Cuis 6.0 [latest update: #5772] on 5 June 2023 at 8:40:36 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 109!
+!provides: 'BidiText' 1 110!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -1474,12 +1474,20 @@ break: tokens
 width: aNumber
 	width := aNumber! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 6/3/2023 18:31:19'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 6/5/2023 20:11:53'!
 break: tokens 
 
-	| edges indices graph vertices breaks last p path result t |
+	| tol edges indices graph vertices breaks last p path result t |
+		
+	tol := 1.
 	
-	edges := self potentialBreaks: tokens tolerance: 8. 
+	edges := self potentialBreaks: tokens tolerance: tol. 
+	
+	[edges isNil and: [ tol < 8] ] whileTrue:[
+		tol := tol + 1.
+		edges := self potentialBreaks: tokens tolerance: tol].
+	
+	edges isNil ifTrue:[^{}].
 	
 	indices := edges inject: Set new into:[:acc :each | acc add: each from. acc add:each to. acc].
 	
@@ -1542,15 +1550,17 @@ nextPotentialBreak: tokens after: index
 	^i.
 ! !
 
-!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 6/3/2023 18:31:59'!
+!BidiJustifiedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 6/5/2023 20:07:06'!
 potentialBreaks: tokens tolerance: tol
 
-	|  b breaks active |
+	|  b breaks active tolerance |
 	
 	breaks := OrderedCollection new.
 
 	tokens isEmpty ifTrue:[^breaks].
-	
+
+	tolerance := tol.
+		
 	b := 1. 
 	
 	active := Set new.
@@ -1566,11 +1576,11 @@ potentialBreaks: tokens tolerance: tol
 				r := self skipRatio: tokens from: each to: b-1.
 				r >= -1 
 					ifTrue:[keep add: each]. 
-				-1 <= r and:[ r <= tol] :: ifTrue:[
+				-1 <= r and:[ r <= tolerance] :: ifTrue:[
 					breaks add: (BidiJustifiedLineBreak new from: each ; stretch: stretch; shrink: shrink; ratio: r ; to: b; yourself).  
 					keep add: b] ].
-			keep isEmpty "prevent active from becoming empty even at the cost of bad breaks"
-				ifTrue:[self halt]. 
+			keep isEmpty "fail if we can't continue"
+				ifTrue:[^nil]. 
 			active := keep. 
 			b := self nextPotentialBreak: tokens after: b ].
 	
@@ -2116,9 +2126,12 @@ alignment: aSymbol
 beginIndex
 	^lines first beginIndex! !
 
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 6/3/2023 17:27:31'!
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 6/5/2023 20:32:54'!
 count
-	^self terminalIndex - self beginIndex "+ 1" " we add 1 to account to the new line character that ends every paragraph but the last."! !
+
+	lines isEmpty ifTrue:[^0].
+	
+	^self terminalIndex - self beginIndex ! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 6/3/2023 17:23:27'!
 endIndex
@@ -2249,10 +2262,12 @@ index: aText base: anInteger at: aPoint
 	^ lines last endIndex.
 	! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 6/3/2023 20:42:01'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 6/5/2023 20:39:10'!
 lastPoint: aText base: baseIndex 
 
 	| x aLine |
+	
+	lines isEmpty ifTrue:[^0@0 extent:0@0].
 	
 	aLine := lines last.
 	
@@ -2596,13 +2611,6 @@ of: aText from: begin to: end
 	
 	^ aBidiTextMetrics ! !
 
-!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
-shrink: aString
-
-	end := end - 1.
-	
-	metrics := BidiTextMetrics of: aString from: begin to: end! !
-
 !BidiToken methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:58:47'!
 begin
 	^begin! !
@@ -2662,6 +2670,13 @@ isSeparator
 
 	^tag = #ws or:[tag = #nl]
 	! !
+
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
+shrink: aString
+
+	end := end - 1.
+	
+	metrics := BidiTextMetrics of: aString from: begin to: end! !
 
 !BidiToken class methodsFor: 'instance creation' stamp: 'DF 5/20/2023 12:58:46'!
 nextContra: aString at: index direction: dir
