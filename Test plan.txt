@@ -1,0 +1,58 @@
+Test plan for BidiText
+
+Parameters: 
+
+Font size
+Writing direction
+Alignment
+Number of paragraphs
+Number of lines in each paragraph
+Italics
+Different fonts in the same line
+Different writing directions in the same line
+Arabic typesetting
+Page width
+Empty text
+Very large text
+Explicit newlines
+
+Behavior
+
+Adding a new first paragraph
+
+Adding text to the end of the page
+
+Adding text in the middle of a paragraph
+
+Adding a newline in the middle of a paragraph
+
+changing the alignment of a paragraph
+
+Erasing the first paragraph
+
+Erasing more than one paragraph
+
+Erasing the last paragraph
+
+Erasing all the text
+
+Copying to and from the Clipboard
+
+Undo/Redo
+
+Selecting parts of the text: a word, a line, a paragraph, more than one paragraph
+
+Selecting with the keyboard, Selecting with the mouse
+
+Erasing the selection
+
+Replacing the selection with text from the Clipboard
+
+Erasing with the backspace key
+
+Erasing with the delete key
+
+
+
+
+
