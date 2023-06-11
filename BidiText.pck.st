@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5753] on 5 June 2023 at 3:28:03 pm'!
+'From Cuis 6.0 [latest update: #5753] on 11 June 2023 at 4:41:12 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 109!
+!provides: 'BidiText' 1 110!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -776,21 +776,37 @@ textHeight
 !BidiTextMorph methodsFor: 'history' stamp: 'DF 4/11/2023 15:05:50'!
 offerUndoHistory! !
 
-!BidiTextMorph methodsFor: 'history' stamp: 'DF 5/20/2023 19:01:02'!
+!BidiTextMorph methodsFor: 'history' stamp: 'DF 6/11/2023 16:36:55'!
 redo
 
-	editor redo.
+	| bed b e delta |
 	
-	page build: text.
+	editor isHistoryAtEnd ifTrue:[^self].
+	 
+	bed := editor redo.
 	
+	b := bed at:1. 
+	e := bed at:2. 
+	delta := bed at:3.
+	
+	page build: text from:b to:e delta: delta.
+
 	self redrawNeeded.! !
 
-!BidiTextMorph methodsFor: 'history' stamp: 'DF 5/20/2023 19:01:11'!
+!BidiTextMorph methodsFor: 'history' stamp: 'DF 6/11/2023 16:34:21'!
 undo
 
-	editor undo.
+	| bed b e delta |
 	
-	page build: text.
+	editor isHistoryEmpty ifTrue:[^self].
+	
+	bed := editor undo.
+	
+	b := bed at:1. 
+	e := bed at:2.
+	delta := bed at:3.
+	
+	page build: text from:b to:e delta: delta.
 	
 	self redrawNeeded.! !
 
@@ -1075,29 +1091,45 @@ movePointTo: anInteger
 	
 	point := anInteger min: text size + 1 :: max: 1! !
 
-!BidiEditor methodsFor: 'history' stamp: 'DF 4/11/2023 15:17:27'!
+!BidiEditor methodsFor: 'testing' stamp: 'DF 6/11/2023 16:36:52'!
+isHistoryAtEnd
+	^ history atEnd! !
+
+!BidiEditor methodsFor: 'testing' stamp: 'DF 6/11/2023 16:35:50'!
+isHistoryEmpty
+	^ history position = 0! !
+
+!BidiEditor methodsFor: 'history' stamp: 'DF 6/11/2023 16:39:28'!
 redo
 
-	| p |
+	| p cmd |
 	
-	history atEnd ifTrue:[^self].
+	self assert: history atEnd not.
 	
-	p := history next doOn: self.
+	cmd := history next.
 	
-	self movePointTo: p ; moveMarkTo: p. ! !
+	p := cmd doOn: self.
+	
+	self movePointTo: p ; moveMarkTo: p. 
+		
+	^ cmd redoInterval ! !
 
-!BidiEditor methodsFor: 'history' stamp: 'DF 4/11/2023 14:40:01'!
+!BidiEditor methodsFor: 'history' stamp: 'DF 6/11/2023 16:37:53'!
 undo
 
-	| p |
+	| p cmd |
 	
-	history position = 0 ifTrue:[^self].
+	self assert: (history position = 0) not.
 	
 	history skipBack.
 	
-	p := history peek undoOn: self.
+	cmd := history peek.
 	
-	self movePointTo: p; moveMarkTo: p.! !
+	p := cmd undoOn: self.
+	
+	self movePointTo: p; moveMarkTo: p.
+	
+	^ cmd undoInterval ! !
 
 !BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:16:30'!
 count
@@ -3165,6 +3197,30 @@ displayOnBitBltCanvasEngine: engine from: startIndex to: stopIndex at: p font: a
 		trueTypeFont: aTrueTypeFont
 		color: color
 		direction: direction.! !
+
+!TextReplaceCommand methodsFor: '*BidiText' stamp: 'DF 6/11/2023 16:15:19'!
+redoInterval
+
+	"Answer the range in which the redo operation will be applied, and the difference between the old and new text substrings."
+
+	| b e |
+	
+	b := position.
+	e := position + old size.
+	
+	^{ b . e . new size - old size }! !
+
+!TextReplaceCommand methodsFor: '*BidiText' stamp: 'DF 6/11/2023 16:14:56'!
+undoInterval
+
+	"Answer the range in which the undo operation will be applied, and the difference between the new and old text substrings."
+
+	| b e |
+	
+	b := position.
+	e := position + new size.
+	
+	^{ b . e . old size - new size }! !
 
 !BitBltCanvasEngine methodsFor: '*BidiText' stamp: 'DF 4/17/2023 09:30:36'!
 basicDisplayUtf8: aByteArray fromByte: byteStartIndex toByte: byteStopIndex at: aPoint trueTypeFont: aTrueTypeFont direction: direction
