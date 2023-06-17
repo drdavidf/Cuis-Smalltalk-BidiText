@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5772] on 17 June 2023 at 4:53:40 pm'!
+'From Cuis 6.0 [latest update: #5753] on 17 June 2023 at 7:01:25 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 112!
+!provides: 'BidiText' 1 113!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -703,7 +703,7 @@ drawOn: aCanvas
 	self drawCursorOn: aCanvas.
 ! !
 
-!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 4/12/2023 09:48:57'!
+!BidiTextMorph methodsFor: 'drawing' stamp: 'DF 6/12/2023 12:00:26'!
 drawSelectionOn: aCanvas
 
 	| b e  rects |
@@ -716,7 +716,7 @@ drawSelectionOn: aCanvas
 	
 	rects := page rectangles: text from: b  to: e.
 	
-	rects do:[:each | aCanvas fillRectangle: each color: Color lightBlue ].
+	rects do:[:each | aCanvas fillRectangle: (each translatedBy: leftMargin @0) color: Color lightBlue ].
 ! !
 
 !BidiTextMorph methodsFor: 'drawing' stamp: 'DF 6/5/2023 10:16:57'!
@@ -834,18 +834,20 @@ Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَ
 BidiScrollableTextMorph new model: s asUnicodeString asText ; morphExtent:800@600;  openInWorld
 	! !
 
-!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 5/26/2023 18:45:19'!
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/12/2023 12:06:40'!
 example2
 
 	"self example2"
 	
-	| s |
+	| s t |
 
-	s := 'In olden times when wishing still helped one, there lived a king whose daughters were all beautiful; and the youngest was so beautiful that the sun itself, which has seen so much, was astonished whenever it shone in here face. 
+	s := 'In olden times when wishing still helped one, there lived a king whose daughters were all beautiful; and the youngest was so beautiful that the sun itself, which has seen so much, was astonished whenever it shone in here face. Close by the king''s castle lay a great dark forest, and under an old lime-tree in the forest was a well, and when the day was very warm, the king''s child went out into the forest and sat down by the side of the cool fountain; and when she was bored she took a golden ball, and threw it up on high and caught it; and this ball was her favorite plaything.'.
 
-Close by the king''s castle lay a great dark forest, and under an old lime-tree in the forest was a well, and when the day was very warm, the king''s child went out into the forest and sat down by the side of the cool fountain; and when she was bored she took a golden ball, and threw it up on high and caught it; and this ball was her favorite plaything.'.
-
-	BidiTextMorph new morphExtent:640@480; text:s asUnicodeString asText ; openInWorld
+	t := s asUnicodeString asText.
+	
+	t justified.
+	
+	BidiTextMorph new morphExtent:640@480; text:t ; openInWorld
 	! !
 
 !BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/7/2023 17:32:45'!
@@ -2672,6 +2674,27 @@ of: aText from: begin to: end
 	
 	^ aBidiTextMetrics ! !
 
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 16:36:45'!
+break: width text: aText into: result
+
+	| b e m | 
+	
+	m := metrics copy.
+	b := begin.
+	e := end.
+	
+	[b < e] whileTrue:[
+		[b< e and:[m width > width]] whileTrue:[
+			e := e - 1.
+			m metrics: aText from:b to:e].
+	
+		result add: (BidiToken new tag: tag ; direction: direction; begin: b; end: e; metrics: (BidiTextMetrics of: aText from:b to:e) ; yourself).
+		b := e.
+		e := end.
+		m metrics: aText from:b to:e ].
+
+! !
+
 !BidiToken methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:58:47'!
 begin
 	^begin! !
@@ -2731,27 +2754,6 @@ isSeparator
 
 	^tag = #ws or:[tag = #nl]
 	! !
-
-!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 16:36:45'!
-break: width text: aText into: result
-
-	| b e m | 
-	
-	m := metrics copy.
-	b := begin.
-	e := end.
-	
-	[b < e] whileTrue:[
-		[b< e and:[m width > width]] whileTrue:[
-			e := e - 1.
-			m metrics: aText from:b to:e].
-	
-		result add: (BidiToken new tag: tag ; direction: direction; begin: b; end: e; metrics: (BidiTextMetrics of: aText from:b to:e) ; yourself).
-		b := e.
-		e := end.
-		m metrics: aText from:b to:e ].
-
-! !
 
 !BidiToken class methodsFor: 'instance creation' stamp: 'DF 5/20/2023 12:58:46'!
 nextContra: aString at: index direction: dir
