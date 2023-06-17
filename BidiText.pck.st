@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5772] on 5 June 2023 at 8:40:36 pm'!
+'From Cuis 6.0 [latest update: #5772] on 7 June 2023 at 8:42:19 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 110!
+!provides: 'BidiText' 1 111!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -726,7 +726,7 @@ extentChanged: oldExtent
 	
 	page width: self morphWidth - leftMargin - rightMargin ; build: text ! !
 
-!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 6/5/2023 15:26:35'!
+!BidiTextMorph methodsFor: 'initialization' stamp: 'DF 6/5/2023 21:55:39'!
 initialize
 
 	super initialize.
@@ -741,7 +741,7 @@ initialize
 	
 	leftMargin := 5.
 	
-	rightMargin := 8.
+	rightMargin := 5.
 
 	editor text: text.
 	
@@ -832,6 +832,21 @@ Close by the king''s castle lay a great dark forest, and under an old lime-tree 
 	BidiTextMorph new morphExtent:640@480; text:s asUnicodeString asText ; openInWorld
 	! !
 
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/7/2023 17:32:45'!
+example3
+
+	"self example3"
+	
+	| s |
+
+	s := 'مقالة اليوم المختارة
+جامعة القاهرة
+
+انتشر التعليم في مصر منذ عهد المصريين القدماء الذين ساهموا في اختراع الكتابة؛ وسجلوا اللغة المصرية القديمة بالكتابة الهيروغليفية، وفي عهدهم أنشئت «بر عنخ» أو بيت الحياة كأول مدرسة ومكتبة في تاريخ الإنسانية. بدخول المسيحية مصر سنة 60م تغيرت بعض ملامح التعليم مع تلك الحقبة، فألحقت المدارس بالكنائس بدلاً من المعابد وأنشئت المدرسة اللاهوتية بالإسكندرية. أما بعد الفتح الإسلامي لمصر فقد ظهرت المدارس الملحقة بالمساجد وكان جامع عمرو بن العاص أول مركز تعقد فيه حلقات الدرس التطوعية في مصر خلال العصر الإسلامي بينما كان الجامع الأزهر أول المدارس الشبيهة بالمعاهد النظامية اليوم حيث كانت تعقد فيه الدروس بتكليف من الدولة ويؤجر عليها العلماء والمدرسون. ثم توالى بعد ذلك إنشاء المدارس خلال عهدي الدولة الأيوبية والدولة المملوكية. مع تولي محمد علي باشا حكم مصر بدأ في تغيير نظام التعليم ليكون على نسق الأنظمة الحديثة، فأنشأ المدارس العسكرية والمدارس العليا والمدارس التجهيزية والمدارس الابتدائية. وفي عام 1908 افتتحت أول جامعة مصرية حديثة وهي الجامعة المصرية (جامعة القاهرة الآن)، ثم توالى إنشاء الجامعات في جميع أنحاء مصر. بحسب الدستور المصري، فإن التعليم مجاني وإلزامي حتى نهاية المرحلة الثانوية أو ما يعادلها بحسب القانون. وتنفق الحكومة على التعليم ما لا يقل عن 4% من الناتج القومي الإجمالي. وطبقاً للمادة 19 من الدستور امتدت مرحلة التعليم الإلزامي من 9 سنوات إلى 12 سنة اعتباراً من سن 6 سنوات إلى 18 سنة لتضم حلقة التعليم الثانوي، فيما ينص قانون التعليم الحالي على أن مرحلة التعليم الأساسي تتكون من حلقتي التعليم الابتدائي والإعدادي بإجمالي 9 سنوات. ويضم التعليم الثانوي بشكل عام طريقين للدراسة هما العام أو الفني بتخصصاته (زراعي، صناعي، تجاري، فندقي، تمريض). بعد المرحلة الثانوية لا يصبح التعليم إلزامياً، وينقسم نظام التعليم بعد ذلك إلى قسمين: التعليم فوق المتوسط لمدة سنتين دراسيتين، والتعليم الجامعي بحد أدنى 4 سنوات دراسية في الجامعات الحكومية والخاصة والمعاهد العليا، والمؤهلة للدراسات العُليا في مراحل الدبلوم والماجستير والدكتوراه بنظامين (مهني، وأكاديمي). بجانب ذلك فإن للأزهر الشريف نظاماً تعليمياً خاصاً يُدّرس فيه العلوم الدينية الإسلامية بجانب الدراسات العلمية الأخرى، والمؤهلة لما بعد التعليم الثانوي للالتحاق بجامعة الأزهر وفروعها في جميع أنحاء الجمهورية. كما ينقسم التعليم العسكري بين الكليات والمعاهد التابعة للقوات المسلحة والكليات والمعاهد التابعة لوزارة الداخلية. '.
+
+	BidiTextMorph new morphExtent:800@800; text:s asUnicodeString asText ; openInWorld
+	! !
+
 !ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 20:23:16'!
 compose: aUnicodeString
 
@@ -895,7 +910,7 @@ compose: aUnicodeString from: bIndex to:eIndex
 	
 	^UnicodeString newFrom: output! !
 
-!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/10/2023 20:26:16'!
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 6/7/2023 20:16:58'!
 initialize
 
 	"self initialize"
@@ -906,17 +921,17 @@ initialize
 	
 	Beginning := #(nil nil nil nil nil nil 4 nil 10 14 18 22 26 nil nil nil nil 38 42 46 50 54 58 62 66 nil nil nil nil nil nil 70 74 78 82 86 90 94 nil nil 102).
 	
-	Middle := #(nil nil nil nil nil nil 5 nil 11 15 19 23 27 nil nil nil nil 39 43 47 51 55 59 63 67 nil nil nil nil nil nil 71 75 79 83 87 91 95 nil nil 103).! !
+	Middle := #(nil nil nil nil -1 nil 5 nil 11 15 19 23 27 nil nil nil nil 39 43 47 51 55 59 63 67 nil nil nil nil nil nil 71 75 79 83 87 91 95 nil nil 103).! !
 
 !ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 20:35:57'!
 isDiacritic: aUnicodeCodePoint
 
 	^ 0x064B <= aUnicodeCodePoint codePoint and: [aUnicodeCodePoint codePoint <= 0x065F]! !
 
-!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 21:55:08'!
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 6/7/2023 19:51:48'!
 isLetter: aUnicodeCodePoint
 
-	^ 0x0627 <= aUnicodeCodePoint codePoint and: [aUnicodeCodePoint codePoint <= 0x064A]! !
+	^ 0x0622 <= aUnicodeCodePoint codePoint and: [aUnicodeCodePoint codePoint <= 0x064A]! !
 
 !BidiEditor methodsFor: 'initialization' stamp: 'DF 4/11/2023 13:55:57'!
 initialize
