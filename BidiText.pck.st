@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5772] on 7 June 2023 at 8:42:19 pm'!
+'From Cuis 6.0 [latest update: #5772] on 17 June 2023 at 4:53:40 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 111!
+!provides: 'BidiText' 1 112!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -847,6 +847,18 @@ example3
 	BidiTextMorph new morphExtent:800@800; text:s asUnicodeString asText ; openInWorld
 	! !
 
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 15:29:25'!
+example4
+
+	"self example4"
+	
+	| s |
+
+	s := '123456789101112131415161718192021222324252627123456789101112131415161718192021222324252627'.
+
+	BidiTextMorph new morphExtent:640@480; text:s asUnicodeString asText ; openInWorld
+	! !
+
 !ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 20:23:16'!
 compose: aUnicodeString
 
@@ -1682,14 +1694,16 @@ break: tokens
 	^breaks
 	! !
 
-!BidiRaggedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 5/21/2023 09:34:19'!
+!BidiRaggedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 16:49:28'!
 nextBreak: tokens after: index
 
-	| b |
+	| b w |
+	
+	w := 0.
 	
 	b := index.
 	
-	[b <= tokens size and:[tokens at:b :: isSeparator not ] ] whileTrue:[b := b + 1].
+	[b <= tokens size and:[w + (tokens at:b :: width) <= width] and:[tokens at:b :: isSeparator not ] ] whileTrue:[w := w + (tokens at:b :: width). b := b + 1].
 
 	[b <= tokens size and:[tokens at:b :: tag = #ws ] ] whileTrue:[b := b + 1].
 	
@@ -2098,7 +2112,7 @@ empty
 	lines add: line	.
 ! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 5/26/2023 21:05:22'!
+!BidiParagraph methodsFor: 'building' stamp: 'DF 6/17/2023 16:17:46'!
 tokenize: aText from: bIndex to: eIndex
 
 	| tokens token |
@@ -2112,7 +2126,7 @@ tokenize: aText from: bIndex to: eIndex
 	
 	[ token tag ~= #eot and: [ token tag ~= #nl ] ]
 		whileTrue: [
-			tokens add: token.
+			token break: width text: aText into: tokens.
 			token := BidiToken nextIn: aText after: token until: eIndex direction: direction.
 			token tag = #nl 	
 				ifTrue:[ 
@@ -2686,12 +2700,26 @@ isSeparator
 	^tag = #ws or:[tag = #nl]
 	! !
 
-!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 5/19/2023 18:29:10'!
-shrink: aString
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 16:36:45'!
+break: width text: aText into: result
 
-	end := end - 1.
+	| b e m | 
 	
-	metrics := BidiTextMetrics of: aString from: begin to: end! !
+	m := metrics copy.
+	b := begin.
+	e := end.
+	
+	[b < e] whileTrue:[
+		[b< e and:[m width > width]] whileTrue:[
+			e := e - 1.
+			m metrics: aText from:b to:e].
+	
+		result add: (BidiToken new tag: tag ; direction: direction; begin: b; end: e; metrics: (BidiTextMetrics of: aText from:b to:e) ; yourself).
+		b := e.
+		e := end.
+		m metrics: aText from:b to:e ].
+
+! !
 
 !BidiToken class methodsFor: 'instance creation' stamp: 'DF 5/20/2023 12:58:46'!
 nextContra: aString at: index direction: dir
