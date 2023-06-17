@@ -1,19 +1,22 @@
 Test plan for BidiText
 
+Prepare a single file with variations of the following
 Parameters: 
 
-Font size
-Writing direction
-Alignment
-Number of paragraphs
-Number of lines in each paragraph
-Italics
+Different fonts
+Different font sizes
+Paragraphs with different writing directions
+All three alignment types
+A large number of paragraphs
+Some paragraphs with avery large number of lines, some paragraphs with a single line, single word
+Italics for different fonts
 Different fonts in the same line
 Different writing directions in the same line
 Arabic typesetting
 Page width
 Empty text
 Very large text
+very long words (longer than page width)
 Explicit newlines
 
 Behavior
