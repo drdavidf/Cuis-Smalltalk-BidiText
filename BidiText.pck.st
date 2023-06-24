@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5753] on 24 June 2023 at 7:11:55 pm'!
+'From Cuis 6.0 [latest update: #5753] on 24 June 2023 at 7:48:20 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 116!
+!provides: 'BidiText' 1 117!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -1026,8 +1026,15 @@ index: aText base: anIndex direction: direction width: width at: x0
 	^ zones last endIndex + anIndex.
 ! !
 
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 14:15:40'!
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 19:47:21'!
 rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint direction: direction 
+
+	| x y |
+	
+	x := aPoint x.
+	y := aPoint y.
+	
+	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x+(each width * direction))@y direction: direction*-1). x := x + (each width * direction). acc ].
 ! !
 
 !BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:01:33'!
