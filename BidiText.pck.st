@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5753] on 17 June 2023 at 7:01:25 pm'!
+'From Cuis 6.0 [latest update: #5847] on 18 June 2023 at 9:26:04 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 113!
+!provides: 'BidiText' 1 115!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -1120,14 +1120,6 @@ movePointTo: anInteger
 	
 	point := anInteger min: text size + 1 :: max: 1! !
 
-!BidiEditor methodsFor: 'testing' stamp: 'DF 6/11/2023 16:36:52'!
-isHistoryAtEnd
-	^ history atEnd! !
-
-!BidiEditor methodsFor: 'testing' stamp: 'DF 6/11/2023 16:35:50'!
-isHistoryEmpty
-	^ history position = 0! !
-
 !BidiEditor methodsFor: 'history' stamp: 'DF 6/11/2023 16:39:28'!
 redo
 
@@ -1159,6 +1151,14 @@ undo
 	self movePointTo: p; moveMarkTo: p.
 	
 	^ cmd undoInterval ! !
+
+!BidiEditor methodsFor: 'testing' stamp: 'DF 6/11/2023 16:36:52'!
+isHistoryAtEnd
+	^ history atEnd! !
+
+!BidiEditor methodsFor: 'testing' stamp: 'DF 6/11/2023 16:35:50'!
+isHistoryEmpty
+	^ history position = 0! !
 
 !BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:16:30'!
 count
@@ -2674,27 +2674,6 @@ of: aText from: begin to: end
 	
 	^ aBidiTextMetrics ! !
 
-!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 16:36:45'!
-break: width text: aText into: result
-
-	| b e m | 
-	
-	m := metrics copy.
-	b := begin.
-	e := end.
-	
-	[b < e] whileTrue:[
-		[b< e and:[m width > width]] whileTrue:[
-			e := e - 1.
-			m metrics: aText from:b to:e].
-	
-		result add: (BidiToken new tag: tag ; direction: direction; begin: b; end: e; metrics: (BidiTextMetrics of: aText from:b to:e) ; yourself).
-		b := e.
-		e := end.
-		m metrics: aText from:b to:e ].
-
-! !
-
 !BidiToken methodsFor: 'accessing' stamp: 'DF 4/15/2023 13:58:47'!
 begin
 	^begin! !
@@ -2754,6 +2733,27 @@ isSeparator
 
 	^tag = #ws or:[tag = #nl]
 	! !
+
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 16:36:45'!
+break: width text: aText into: result
+
+	| b e m | 
+	
+	m := metrics copy.
+	b := begin.
+	e := end.
+	
+	[b < e] whileTrue:[
+		[b< e and:[m width > width]] whileTrue:[
+			e := e - 1.
+			m metrics: aText from:b to:e].
+	
+		result add: (BidiToken new tag: tag ; direction: direction; begin: b; end: e; metrics: (BidiTextMetrics of: aText from:b to:e) ; yourself).
+		b := e.
+		e := end.
+		m metrics: aText from:b to:e ].
+
+! !
 
 !BidiToken class methodsFor: 'instance creation' stamp: 'DF 5/20/2023 12:58:46'!
 nextContra: aString at: index direction: dir
@@ -2979,7 +2979,7 @@ index: aText base: anIndex direction: direction width: width at: x
 	^i + anIndex
 		! !
 
-!BidiZone methodsFor: 'translating' stamp: 'DF 5/19/2023 15:22:32'!
+!BidiZone methodsFor: 'translating' stamp: 'DF 6/18/2023 21:25:51'!
 rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint direction: direction 
 
 	| b e ix jx p q |
@@ -2994,8 +2994,8 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint direction: 
 
 	jx := self xcoord: aText direction: direction base: baseIndex at: e x: aPoint x.
 		
-	p := direction = 1 ifTrue:[ix] ifFalse:[jx].
-	q := direction = 1 ifTrue:[jx] ifFalse:[ix].
+	p := ix min: jx.
+	q := ix max: jx.
 		
 	^{ p@(aPoint y + self height - metrics ascent) extent: (q-p)@(metrics ascent + metrics descent)	 }.
 ! !
@@ -3093,6 +3093,18 @@ build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretch
 	
 	^b! !
 
+!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 19:13:14'!
+draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
+
+	| r extent |
+	
+	extent := self extent.
+	
+	r := direction = 1 ifTrue:[aPoint - (0@extent y) extent: extent] ifFalse:[aPoint - extent extent: extent].
+	
+	aCanvas frameRectangle: r borderWidth:1 color: (Color fromHexString: '#ffb044').
+! !
+
 !BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 5/24/2023 21:05:55'!
 proceed: tokens at: index direction: dir
 
@@ -3101,6 +3113,21 @@ proceed: tokens at: index direction: dir
 	tag := tokens at:index :: tag.
 	
 	^ tag = #ws or:[tag = #nl].! !
+
+!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 19:25:56'!
+xcoord: aText direction: direction base: baseIndex at: index x: x
+
+	" answer the x coordinate of the code point whose index is index. "	
+	
+	" because a skip zone could stretch or shrink we need to calculate this factor and use it
+	to update the basic width we get from the metrics object"
+	
+	| w |
+	
+	w := ((index - beginIndex) / (endIndex - beginIndex)) * metrics width.
+	
+	^ x + (w * direction).
+! !
 
 !Edge methodsFor: 'as yet unclassified' stamp: 'DF 5/12/2023 11:50:12'!
 connect: aSourceVertex to: aTargetVertex
