@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5753] on 24 June 2023 at 7:48:20 pm'!
+'From Cuis 6.0 [latest update: #5847] on 26 June 2023 at 6:58:56 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 117!
+!provides: 'BidiText' 1 119!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -823,12 +823,12 @@ undo
 	
 	self redrawNeeded.! !
 
-!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/4/2023 13:45:26'!
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/26/2023 18:46:31'!
 example
 
 	"self example"
 	
-	| s |
+	| s a t |
 
 	s := '{א} בראשית ברא אלהים את השמים ואת הארץ: {ב} והארץ היתה תהו ובהו וחשך על פני תהום ורוח אלהים מרחפת על פני המים: {ג} ויאמר אלהים יהי אור ויהי אור: {ד} וירא אלהים את האור כי טוב ויבדל אלהים בין האור ובין החשך: {ה} ויקרא אלהים לאור יום ולחשך קרא לילה ויהי ערב ויהי בקר יום אחד: (פ)
 
@@ -844,7 +844,14 @@ example
 
 Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَرَبِيّ, ʿarabī [ˈʕarabiː] or [ʕaraˈbij]) (sometimes arguably, the Arabic languages) is a Semitic language spoken primarily across the Arab world.[6] Having emerged in the 1st century, it is named after the Arab people; the term "Arab" was initially used to describe those living in the Arabian Peninsula, as perceived by geographers from ancient Greece.[7]'.
 
-BidiScrollableTextMorph new model: s asUnicodeString asText ; morphExtent:800@600;  openInWorld
+t := ​s asText.
+
+a := Array new: s size.
+1 to: a size do:[:i | a at:i put:(s at:i)].
+
+t setString: a setRuns: t runs.
+
+BidiScrollableTextMorph new model: t ; morphExtent:800@600;  openInWorld
 	! !
 
 !BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/12/2023 12:06:40'!
@@ -896,8 +903,8 @@ compose: aUnicodeString
 	^self compose: aUnicodeString from:1 to: aUnicodeString size
 ! !
 
-!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/21/2023 22:28:45'!
-compose: aUnicodeString from: bIndex to:eIndex
+!ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 6/26/2023 13:53:43'!
+compose: aCodePointArray from: bIndex to:eIndex
 
 	| output b e lookAhead lookBehind |
 	
@@ -908,50 +915,51 @@ compose: aUnicodeString from: bIndex to:eIndex
 	
 	bIndex to: 	eIndex do:[:i |
 		
-		b <= (aUnicodeString at:i) codePoint and:[(aUnicodeString at:i) codePoint <= e] :: 
+		b <= (aCodePointArray at:i) codePoint and:[(aCodePointArray at:i) codePoint <= e] :: 
 			ifTrue:[
 				
 				lookAhead := i + 1.
 				
-				[lookAhead <= aUnicodeString size and:[self isDiacritic: (aUnicodeString at:lookAhead)] ]
+				[lookAhead <= aCodePointArray size and:[self isDiacritic: (aCodePointArray at:lookAhead)] ]
 					whileTrue:[lookAhead := lookAhead + 1].
 				
 				lookBehind := i - 1.
 				
-				[lookBehind >=1 and:[self isDiacritic: (aUnicodeString at:lookBehind)] ]
+				[lookBehind >=1 and:[self isDiacritic: (aCodePointArray at:lookBehind)] ]
 					whileTrue:[lookBehind := lookBehind - 1].
 							
 				"beginning of word"
-				(i = 1 or: [ self isLetter: (aUnicodeString at:lookBehind) :: not ]) and: [i < aUnicodeString size] and: [ self isLetter: (aUnicodeString at: lookAhead) ] :: ifTrue:[ | c | 
-					c := Beginning at: (aUnicodeString at:i) codePoint - 1569.
-					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
+				(i = 1 or: [ self isLetter: (aCodePointArray at:lookBehind) :: not ]) and: [i < aCodePointArray size] and: [ self isLetter: (aCodePointArray at: lookAhead) ] :: ifTrue:[ | c | 
+					c := Beginning at: (aCodePointArray at:i) codePoint - 1569.
+					c ifNil:[output add: (aCodePointArray at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
 				
 				"middle of word"
-				i > 1 and: [i < aUnicodeString size] and: [self isLetter:(aUnicodeString at:lookBehind) ] and: [self isLetter: (aUnicodeString at:lookAhead) ] :: ifTrue:[ | c |
+				i > 1 and: [i < aCodePointArray size] and: [self isLetter:(aCodePointArray at:lookBehind) ] and: [self isLetter: (aCodePointArray at:lookAhead) ] :: ifTrue:[ | c |
 					
-					c := Middle at: (aUnicodeString at:i) codePoint - 1569.
-					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
+					c := Middle at: (aCodePointArray at:i) codePoint - 1569.
+					c ifNil:[output add: (aCodePointArray at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)] ].
 				
 				"end of word" 
-				i> 1 and:[ self isLetter: (aUnicodeString at:lookBehind) ] and: [i = aUnicodeString size or: [ self isLetter: (aUnicodeString at: lookAhead) :: not ] ] :: ifTrue:[
+				i> 1 and:[ self isLetter: (aCodePointArray at:lookBehind) ] and: [i = aCodePointArray size or: [ self isLetter: (aCodePointArray at: lookAhead) :: not ] ] :: ifTrue:[
 					| c |
 					
-					c := End at: (aUnicodeString at:i) codePoint - 1569.
-					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)]
+					c := End at: (aCodePointArray at:i) codePoint - 1569.
+					c ifNil:[output add: (aCodePointArray at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)]
 					].
 				
 				"isolated"
 				
-				(i = 1 or: [ self isLetter: (aUnicodeString at: lookBehind) :: not ]) and: [i = aUnicodeString size or: [ self isLetter: (aUnicodeString at: lookAhead) :: not ] ] :: ifTrue:[
+				(i = 1 or: [ self isLetter: (aCodePointArray at: lookBehind) :: not ]) and: [i = aCodePointArray size or: [ self isLetter: (aCodePointArray at: lookAhead) :: not ] ] :: ifTrue:[
 					| c |
 					
-					c := Isolated at: (aUnicodeString at:i) codePoint - 1569.
-					c ifNil:[output add: (aUnicodeString at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)]
+					c := Isolated at: (aCodePointArray at:i) codePoint - 1569.
+					c ifNil:[output add: (aCodePointArray at:i) ] ifNotNil:[output add: (UnicodeCodePoint codePoint: c + 65165)]
 					].
 			] 
-			ifFalse:[output add: (aUnicodeString at:i) ] ].
+			ifFalse:[output add: (aCodePointArray at:i) ] ].
 	
-	^UnicodeString newFrom: output! !
+	"^UnicodeString newFrom: output"
+	^output! !
 
 !ArabicComposer class methodsFor: 'as yet unclassified' stamp: 'DF 6/7/2023 20:16:58'!
 initialize
@@ -2713,17 +2721,17 @@ leftFlushCode
 rightFlushCode
 	^1! !
 
-!BidiParenComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/16/2023 18:22:31'!
-compose: aUnicodeString
+!BidiParenComposer class methodsFor: 'as yet unclassified' stamp: 'DF 6/26/2023 18:53:29'!
+compose: aCodePointArray
 
 	| output |
 	
 	output := OrderedCollection new.
 	
-	aUnicodeString do:[:c |
-		output add:  (c codePoint > 127 	ifTrue:[c] ifFalse:[ Paren at: c codePoint ]) 	].
+	aCodePointArray do:[:c |
+		output add:  (c codePoint > 127 	ifTrue:[c] ifFalse:[ UnicodeCodePoint codePoint: (Paren at: c codePoint) ]) 	].
 	
-	^UnicodeString newFrom: output
+	^output
 	! !
 
 !BidiParenComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/16/2023 18:03:26'!
@@ -3055,7 +3063,7 @@ proceed: tokens at: index direction: dir
 
 	^self subclassResponsibility ! !
 
-!BidiZone methodsFor: 'drawing' stamp: 'DF 6/5/2023 10:07:24'!
+!BidiZone methodsFor: 'drawing' stamp: 'DF 6/26/2023 18:00:04'!
 draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 	| x y b e j font color r s extent |
@@ -3090,7 +3098,7 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 			ifTrue:[BidiParenComposer compose:s] 
 			ifFalse:[s].
 			
-		aCanvas drawString: s from: 1 to: s size atBaseline: x@y font: font color: color direction: direction.
+		aCanvas drawCodePointArray: s from: 1 to: s size atBaseline: x@y font: font color: color direction: direction.
 		x := x + ((font widthOfString: s from: 1 to: s size) * direction).
 		b := e+1.
 
@@ -3266,6 +3274,14 @@ build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretch
 	
 	^b! !
 
+!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 13:12:24'!
+color
+	^color! !
+
+!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 13:12:30'!
+color: aSymbol
+	color := aSymbol ! !
+
 !BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 19:13:14'!
 draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
@@ -3277,13 +3293,6 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 	
 	aCanvas frameRectangle: r borderWidth:1 color: (Color fromHexString: '#ffb044').
 ! !
-!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 13:12:24'!
-color
-	^color! !
-
-!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 13:12:30'!
-color: aSymbol
-	color := aSymbol ! !
 
 !BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 13:12:36'!
 initialize
@@ -3454,6 +3463,18 @@ writingDirection
 
 	^#ltr! !
 
+!SequenceableCollection methodsFor: '*BidiText' stamp: 'DF 6/26/2023 18:09:51'!
+displayOnBitBltCanvasEngine: engine from: startIndex to: stopIndex at: p font: aTrueTypeFont color: color direction: direction
+
+	^engine
+		displayUnicode: self
+		from: startIndex
+		to: stopIndex
+		at: p
+		trueTypeFont: aTrueTypeFont
+		color: color
+		direction: direction.! !
+
 !UnicodeString methodsFor: '*BidiText' stamp: 'DF 4/4/2023 18:15:18'!
 displayOnBitBltCanvasEngine: engine from: startIndex to: stopIndex at: p font: aTrueTypeFont color: color direction: direction
 
@@ -3492,6 +3513,67 @@ undoInterval
 	e := position + new size.
 	
 	^{ b . e . old size - new size }! !
+
+!BitBltCanvasEngine methodsFor: '*BidiText' stamp: 'DF 6/26/2023 18:58:21'!
+basicDisplayUnicode: aCodePointArray from: startIndex to: stopIndex at: aPoint trueTypeFont: aTrueTypeFont direction: direction
+
+	"Answer position to place next glyph"
+
+	| fdestX glyph byte stream maxHeight ascent lineGap deltaXForBaseGlyph deltaXForDiacriticalMark |
+	
+	deltaXForBaseGlyph := 0.
+	
+	ascent := aTrueTypeFont ascent.		  "expensive"
+	lineGap := aTrueTypeFont lineGap."expensive"
+	destY := aPoint y.
+	fdestX := aPoint x.
+	maxHeight := 0.
+	
+	byte := Array new:4.
+	stream := WriteStream with: byte.
+	
+	startIndex to: stopIndex do:[:i | 
+		
+		stream reset.
+		byte at:1 put:nil; at:2 put:nil ; at:3 put:nil; at:4 put:nil.
+		
+		Character evaluate:[:b |
+			stream nextPut: b ]
+		withUtf8BytesOfUnicodeCodePoint: (aCodePointArray at:i :: codePoint).
+		
+		glyph := aTrueTypeFont glyphAtUtf8Byte1: (byte at:1) byte2: (byte at:2) byte3: (byte at:3) byte4: (byte at:4).
+		
+		sourceForm := glyph form.
+		height := sourceForm height.
+		width := sourceForm width.
+			
+		direction = -1 ifTrue:[
+			fdestX := fdestX - glyph advanceWidth.
+			maxHeight := maxHeight max: height		].
+		"Center diacriticals marks."
+		glyph advanceWidth = 0.0
+			ifFalse: [
+				deltaXForBaseGlyph := glyph deltaXToCenter.
+				deltaXForDiacriticalMark := 0.0 ]
+			ifTrue: [ 
+				deltaXForDiacriticalMark := glyph deltaXToCenter.
+				deltaXForDiacriticalMark = 0 ifFalse: [ "Only for those who specify a delta to center."					
+					deltaXForDiacriticalMark := deltaXForDiacriticalMark - (deltaXForBaseGlyph * direction) ].
+				 ].
+		destX := (fdestX + glyph leftOffset + deltaXForDiacriticalMark) roundedHAFZ.
+		destY := aPoint y + ascent + lineGap-1 - glyph topOffset.
+		aTrueTypeFont isSuperscript
+			ifTrue: [destY := destY - (ascent*0.55)]
+			ifFalse: [
+				aTrueTypeFont isSubscript
+					ifTrue: [destY := destY + (ascent*0.3)]].
+		destY := destY roundedHAFZ.
+		self copyBits.
+		direction = 1 ifTrue:[
+			fdestX := fdestX + glyph advanceWidth.
+			maxHeight := maxHeight max: height		].
+	].
+	^ fdestX ceiling@(destY+maxHeight)! !
 
 !BitBltCanvasEngine methodsFor: '*BidiText' stamp: 'DF 4/17/2023 09:30:36'!
 basicDisplayUtf8: aByteArray fromByte: byteStartIndex toByte: byteStopIndex at: aPoint trueTypeFont: aTrueTypeFont direction: direction
@@ -3547,6 +3629,45 @@ basicDisplayUtf8: aByteArray fromByte: byteStartIndex toByte: byteStopIndex at: 
 	].
 	^ fdestX ceiling@(destY+maxHeight)! !
 
+!BitBltCanvasEngine methodsFor: '*BidiText' stamp: 'DF 6/26/2023 13:35:48'!
+displayUnicode: aCodePointArray from: startIndex to: stopIndex at: aPoint trueTypeFont: aTrueTypeFont color: foregroundColor direction: direction
+	"If required, do a second pass with new rule and colorMap.
+	Answer position to place next glyph
+	Answer nil if nothing was done
+	"
+
+	| answer prevRule secondPassMap sourceDepth destDepth |
+
+	"Slight optimization when there's nothing to do."
+	clipHeight = 0 ifTrue: [^nil].
+	clipWidth = 0 ifTrue: [^nil].
+
+	sourceForm := nil. "Set it for each glyph"
+	sourceX := 0.
+	sourceY := 0.
+	height := nil. "Set it for each glyph as sourceForm height".
+	self setRuleAndMapFor: 32 foregroundColor: (foregroundColor alpha: 1).
+
+	"If combinationRule is rgbMul, we might need the special two-pass technique for component alpha blending.
+	If not, do it simply"
+	combinationRule = 37 "rgbMul" ifFalse: [
+		^self basicDisplayUnicode: aCodePointArray from: startIndex to: stopIndex at: aPoint trueTypeFont: aTrueTypeFont direction: direction ].
+	
+	"We need to do a second pass. The colormap set is for use in the second pass."
+	secondPassMap := colorMap.
+	sourceDepth := aTrueTypeFont cachedFormDepth.
+	destDepth := destForm depth.
+	colorMap := sourceDepth ~= destDepth
+		ifTrue: [ Color cachedColormapFrom: sourceDepth to: destDepth ].
+	answer := self basicDisplayUnicode: aCodePointArray from: startIndex to: stopIndex at: aPoint trueTypeFont: aTrueTypeFont direction: direction.
+	colorMap := secondPassMap.
+	secondPassMap ifNotNil: [
+		prevRule := combinationRule.
+		combinationRule := 20. "rgbAdd"
+		self basicDisplayUnicode: aCodePointArray from: startIndex to: stopIndex at: aPoint trueTypeFont: aTrueTypeFont direction: direction.
+		combinationRule := prevRule ].
+	^answer! !
+
 !BitBltCanvasEngine methodsFor: '*BidiText' stamp: 'DF 4/4/2023 18:13:32'!
 displayUtf8: aByteArray fromByte: byteStartIndex toByte: byteStopIndex at: aPoint trueTypeFont: aTrueTypeFont color: foregroundColor direction: direction
 	"If required, do a second pass with new rule and colorMap.
@@ -3585,6 +3706,28 @@ displayUtf8: aByteArray fromByte: byteStartIndex toByte: byteStopIndex at: aPoin
 		self basicDisplayUtf8: aByteArray fromByte: byteStartIndex toByte: byteStopIndex at: aPoint trueTypeFont: aTrueTypeFont direction: direction.
 		combinationRule := prevRule ].
 	^answer! !
+
+!BitBltCanvas methodsFor: '*BidiText' stamp: 'DF 6/26/2023 13:56:11'!
+drawCodePointArray: aCodePointArray from: firstIndex to: lastIndex atBaseline: aPoint font: font color: aColor direction: direction
+	"Answer position to place next glyph
+	Answer nil if nothing was done"
+
+	| p1 |
+	"Don't waste any time if NOP"
+	lastIndex = 0 ifTrue: [
+		^nil ].
+
+	p1 := currentTransformation transform: aPoint roundedHAFZ.
+	p1 := p1 + (0@(0 - (font ascent + font lineGap-1))).
+	p1 := p1 roundedHAFZ.
+	engine colorMap: nil.
+	^aCodePointArray displayOnBitBltCanvasEngine: engine
+		from: firstIndex
+		to: lastIndex
+		at: p1
+		font: font
+		color: aColor
+		direction: direction! !
 
 !BitBltCanvas methodsFor: '*BidiText' stamp: 'DF 4/4/2023 18:16:12'!
 drawString: aString from: firstIndex to: lastIndex atBaseline: aPoint font: font color: aColor direction: direction
