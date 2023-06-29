@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5847] on 29 June 2023 at 11:29:23 am'!
+'From Cuis 6.0 [latest update: #5847] on 29 June 2023 at 5:30:57 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 119!
+!provides: 'BidiText' 1 120!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -823,12 +823,12 @@ undo
 	
 	self redrawNeeded.! !
 
-!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/26/2023 13:40:52'!
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/29/2023 17:30:47'!
 example
 
 	"self example"
 	
-	| s a t |
+	| s t |
 
 	s := '{א} בראשית ברא אלהים את השמים ואת הארץ: {ב} והארץ היתה תהו ובהו וחשך על פני תהום ורוח אלהים מרחפת על פני המים: {ג} ויאמר אלהים יהי אור ויהי אור: {ד} וירא אלהים את האור כי טוב ויבדל אלהים בין האור ובין החשך: {ה} ויקרא אלהים לאור יום ולחשך קרא לילה ויהי ערב ויהי בקר יום אחד: (פ)
 
@@ -844,12 +844,7 @@ example
 
 Arabic (اَلْعَرَبِيَّةُ, al-ʿarabiyyah [al ʕaraˈbijːa] ; عَرَبِيّ, ʿarabī [ˈʕarabiː] or [ʕaraˈbij]) (sometimes arguably, the Arabic languages) is a Semitic language spoken primarily across the Arab world.[6] Having emerged in the 1st century, it is named after the Arab people; the term "Arab" was initially used to describe those living in the Arabian Peninsula, as perceived by geographers from ancient Greece.[7]'.
 
-t := ​s asText.
-
-a := Array new: s size.
-1 to: a size do:[:i | a at:i put:(s at:i)].
-
-t setString: a setRuns: t runs.
+t := ​s asUnicodeString asText.
 
 BidiScrollableTextMorph new model: t ; morphExtent:800@600;  openInWorld
 	! !
@@ -1043,6 +1038,17 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint direction: 
 	y := aPoint y.
 	
 	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x+(each width * direction))@y direction: direction*-1). x := x + (each width * direction). acc ].
+! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/29/2023 17:26:08'!
+rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint height: h direction: direction 
+
+	| x y |
+	
+	x := aPoint x.
+	y := aPoint y.
+	
+	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x+(each width * direction))@y height:h direction: direction*-1). x := x + (each width * direction). acc ].
 ! !
 
 !BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:01:33'!
@@ -1579,7 +1585,7 @@ index: aText base: anInteger direction: direction width: width at: xCoord alignm
 		
 ! !
 
-!BidiLine methodsFor: 'translating' stamp: 'DF 5/6/2023 12:48:30'!
+!BidiLine methodsFor: 'translating' stamp: 'DF 6/29/2023 17:24:37'!
 rectangles: aText base: baseIndex from: bIndex to: eIndex at: y direction: direction width: width alignment: alignment 
 
 	| x xoffset |
@@ -1590,7 +1596,7 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex at: y direction: direc
 	
 	x := xoffset * direction + x.
 
-	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x@y) direction: direction). x := x + (each width * direction). acc ].
+	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x@(y+ metrics height - metrics ascent)) height: metrics ascent + metrics descent direction: direction). x := x + (each width * direction). acc ].
 	! !
 
 !BidiLine methodsFor: 'translating' stamp: 'DF 5/19/2023 18:40:21'!
@@ -3185,6 +3191,29 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint direction: 
 	q := ix max: jx.
 		
 	^{ p@(aPoint y + self height - metrics ascent) extent: (q-p)@(metrics ascent + metrics descent)	 }.
+! !
+
+!BidiZone methodsFor: 'translating' stamp: 'DF 6/29/2023 17:21:54'!
+rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint height: h direction: direction 
+
+	| b e ix jx p q |
+	
+	b := bIndex max: beginIndex.
+	e := eIndex min: endIndex.
+	
+	b >= endIndex ifTrue:[^{}].
+	e <= beginIndex ifTrue:[^{}].
+	
+	ix := self xcoord: aText direction: direction base: baseIndex at: b x: aPoint x.
+
+	jx := self xcoord: aText direction: direction base: baseIndex at: e x: aPoint x.
+		
+	p := ix min: jx.
+	q := ix max: jx.
+		
+"	^{ p@(aPoint y + self height - metrics ascent) extent: (q-p)@(metrics ascent + metrics descent)	 }."
+
+	^{ p@aPoint y extent: (q-p)@h }.
 ! !
 
 !BidiZone methodsFor: 'translating' stamp: 'DF 6/24/2023 16:51:06'!
