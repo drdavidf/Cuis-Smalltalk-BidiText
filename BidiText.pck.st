@@ -1,4 +1,4 @@
-'From Cuis 6.0 [latest update: #5847] on 26 June 2023 at 6:58:56 pm'!
+'From Cuis 6.0 [latest update: #5847] on 29 June 2023 at 11:29:23 am'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
 !provides: 'BidiText' 1 119!
 SystemOrganization addCategory: 'BidiText'!
@@ -823,7 +823,7 @@ undo
 	
 	self redrawNeeded.! !
 
-!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/26/2023 18:46:31'!
+!BidiTextMorph class methodsFor: 'as yet unclassified' stamp: 'DF 6/26/2023 13:40:52'!
 example
 
 	"self example"
@@ -2721,17 +2721,17 @@ leftFlushCode
 rightFlushCode
 	^1! !
 
-!BidiParenComposer class methodsFor: 'as yet unclassified' stamp: 'DF 6/26/2023 18:53:29'!
-compose: aCodePointArray
+!BidiParenComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/16/2023 18:22:31'!
+compose: aUnicodeString
 
 	| output |
 	
 	output := OrderedCollection new.
 	
-	aCodePointArray do:[:c |
-		output add:  (c codePoint > 127 	ifTrue:[c] ifFalse:[ UnicodeCodePoint codePoint: (Paren at: c codePoint) ]) 	].
+	aUnicodeString do:[:c |
+		output add:  (c codePoint > 127 	ifTrue:[c] ifFalse:[ Paren at: c codePoint ]) 	].
 	
-	^output
+	^UnicodeString newFrom: output
 	! !
 
 !BidiParenComposer class methodsFor: 'as yet unclassified' stamp: 'DF 4/16/2023 18:03:26'!
@@ -2913,21 +2913,21 @@ isSeparator
 	^tag = #ws or:[tag = #nl]
 	! !
 
-!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 16:36:45'!
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 6/29/2023 11:21:03'!
 break: width text: aText into: result
 
 	| b e m | 
 	
-	m := metrics copy.
+	m := metrics.
 	b := begin.
 	e := end.
 	
 	[b < e] whileTrue:[
 		[b< e and:[m width > width]] whileTrue:[
-			e := e - 1.
-			m metrics: aText from:b to:e].
+			e := (e + b) // 2.
+			m  metrics: aText from:b to:e].
 	
-		result add: (BidiToken new tag: tag ; direction: direction; begin: b; end: e; metrics: (BidiTextMetrics of: aText from:b to:e) ; yourself).
+		result add: (BidiToken new tag: tag ; direction: direction; begin: b; end: e; metrics: m copy ; yourself).
 		b := e.
 		e := end.
 		m metrics: aText from:b to:e ].
@@ -3063,7 +3063,7 @@ proceed: tokens at: index direction: dir
 
 	^self subclassResponsibility ! !
 
-!BidiZone methodsFor: 'drawing' stamp: 'DF 6/26/2023 18:00:04'!
+!BidiZone methodsFor: 'drawing' stamp: 'DF 6/29/2023 11:22:30'!
 draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 	| x y b e j font color r s extent |
@@ -3485,6 +3485,18 @@ displayOnBitBltCanvasEngine: engine from: startIndex to: stopIndex at: p font: a
 		displayUtf8: bytes
 		fromByte: byteStartIndex
 		toByte: byteStopIndex
+		at: p
+		trueTypeFont: aTrueTypeFont
+		color: color
+		direction: direction.! !
+
+!Array methodsFor: '*BidiText' stamp: 'DF 6/26/2023 13:52:12'!
+displayOnBitBltCanvasEngine: engine from: startIndex to: stopIndex at: p font: aTrueTypeFont color: color direction: direction
+
+	^engine
+		displayUnicode: self
+		from: startIndex
+		to: stopIndex
 		at: p
 		trueTypeFont: aTrueTypeFont
 		color: color
