@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5847] on 1 July 2023 at 3:41:57 pm'!
+'From Cuis 6.0 [latest update: #5847] on 1 July 2023 at 8:30:40 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 121!
+!provides: 'BidiText' 1 122!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -3501,12 +3501,13 @@ prev
 prev: aVertex
 	prev := aVertex! !
 
-!UnicodeCodePoint methodsFor: '*BidiText' stamp: 'DF 4/16/2023 14:02:30'!
+!UnicodeCodePoint methodsFor: '*BidiText' stamp: 'DF 7/1/2023 20:30:23'!
 writingDirection
 
 	0 <=  value and: value  <= 47 :: ifTrue:[^#neutral].
 	48 <= value  and:  value <= 57 :: ifTrue:[^#tltr].
 	58 <=  value and: value  <= 63 :: ifTrue:[^#neutral].
+	91 <=  value and: value  <= 96 :: ifTrue:[^#neutral].
 	123 <=  value and: value  <= 127 :: ifTrue:[^#neutral].
 	value = 16xA0 :: ifTrue:[^#neutral]. "non breaking space"
 	16x0590 <=  value and:  value <= 16x05FF :: ifTrue:[^#rtl]. "Hebrew"
