@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5847] on 29 June 2023 at 5:30:57 pm'!
+'From Cuis 6.0 [latest update: #5847] on 1 July 2023 at 3:41:57 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 120!
+!provides: 'BidiText' 1 121!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -1029,17 +1029,6 @@ index: aText base: anIndex direction: direction width: width at: x0
 	^ zones last endIndex + anIndex.
 ! !
 
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 19:47:21'!
-rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint direction: direction 
-
-	| x y |
-	
-	x := aPoint x.
-	y := aPoint y.
-	
-	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x+(each width * direction))@y direction: direction*-1). x := x + (each width * direction). acc ].
-! !
-
 !BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/29/2023 17:26:08'!
 rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint height: h direction: direction 
 
@@ -1423,7 +1412,7 @@ newlineTerminated: aBoolean
 width
 	^metrics width! !
 
-!BidiLine methodsFor: 'building' stamp: 'DF 6/24/2023 16:00:35'!
+!BidiLine methodsFor: 'building' stamp: 'DF 6/30/2023 21:16:11'!
 build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretchRatio 
 
 	| b zone zs |
@@ -1444,12 +1433,12 @@ build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretchRa
 			zs add: zone.
 			b := zone build: tokens base: baseIndex from: b to: e direction: dir ratio: stretchRatio ].
 	
-	" paint the zones to clearly mark which skips belong to the native direction and which belong to the
+	" paint the zones to clearly mark which zones belong to the native direction and which belong to the
 	contra direction "
 	
 	self paint: zs.
 	
-	"group all the consecutive contra+skip zones and reverse them "
+	"collect all the consecutive contra+skip zones into contra-zone-chains "
 
 	zones := self group:zs :: collect:[:each | each first color = #red ifTrue:[{BidiContraZoneChain new zones: each reverse; yourself}] ifFalse:[each] ] andFold:[:x :y | x,y] ifEmpty:{}.
 	
@@ -1878,7 +1867,19 @@ skipRatio: tokens from: begin to: end
 stretch: aNumber
 	stretch := aNumber! !
 
-!BidiRaggedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 6/3/2023 17:15:09'!
+!BidiRaggedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 7/1/2023 15:05:15'!
+advance: tokens start: x from: bIndex to: e
+
+	| b w |
+	
+	b := bIndex.
+	w := x.
+	
+	[b < e] whileTrue:[w :=(tokens at: b :: advance: w). b := b + 1].
+	
+	^w.! !
+
+!BidiRaggedLineBreaker methodsFor: 'as yet unclassified' stamp: 'DF 7/1/2023 15:06:33'!
 break: tokens 
 
 	| b w breaks |
@@ -1891,13 +1892,13 @@ break: tokens
 		whileTrue:[ | p pp aBreak |
 			pp := b.
 			p := self nextBreak: tokens after: pp.
-			w := self width: tokens from: pp to: p.
+			w := self advance: tokens start:0 from: pp to: p.
 			
 			[p <= tokens size and:[w <= width] and:[ tokens at: p :: tag ~= #nl ] ]
 				whileTrue:[
 					pp := p.  
 					p := self nextBreak: tokens after:p.
-					w := w + (self width: tokens from:pp to:p) ].
+					w := self advance: tokens start:w from:pp to:p ].
 			
 			w > width ifTrue:[p := pp].
 			
@@ -2827,6 +2828,28 @@ metrics: aText from: begin to: end
 	
 ! !
 
+!BidiTextMetrics methodsFor: 'as yet unclassified' stamp: 'DF 7/1/2023 15:30:02'!
+tabMetrics: aText at: begin 
+
+	| font |
+	
+	ascent := 0.
+	descent := 0.
+	width := 0.
+	height := 0.
+	
+	begin > aText size ifTrue:[^self].
+	
+	font := aText fontAt: begin default: nil.
+	
+	height := height max: font lineSpacing.
+	ascent := ascent max: font ascent.
+	descent  := descent max: font descent. 	
+		
+	width := (font widthOfString: '0').
+	
+! !
+
 !BidiTextMetrics methodsFor: 'as yet unclassified' stamp: 'DF 5/16/2023 20:45:25'!
 width
 	^width! !
@@ -2919,6 +2942,19 @@ isSeparator
 	^tag = #ws or:[tag = #nl]
 	! !
 
+!BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 7/1/2023 15:40:28'!
+advance: aNumber
+
+	tag = #tab ifTrue:[ | w0 |
+	
+		w0 := metrics width * 4.
+	
+		metrics width: (aNumber // w0) * w0 + w0 - aNumber.
+	].
+
+	^aNumber + metrics width.
+	! !
+
 !BidiToken methodsFor: 'as yet unclassified' stamp: 'DF 6/29/2023 11:21:03'!
 break: width text: aText into: result
 
@@ -2963,7 +2999,7 @@ nextIn: aString after: aToken until: eIndex direction: dir
 		
 	! !
 
-!BidiToken class methodsFor: 'instance creation' stamp: 'DF 5/20/2023 12:59:34'!
+!BidiToken class methodsFor: 'instance creation' stamp: 'DF 7/1/2023 15:31:03'!
 nextIn: aString from: bIndex to:eIndex direction: dir
  
 	| c |
@@ -2975,6 +3011,8 @@ nextIn: aString from: bIndex to:eIndex direction: dir
 	c := aString at:bIndex.
 	
 	c isLineSeparator ifTrue:[^BidiToken new tag:#nl ; direction: #neutral ; begin:bIndex ; end: bIndex+1; metrics: (BidiTextMetrics of: aString from: bIndex to: bIndex+1); yourself].
+
+	c codePoint = 9 ifTrue:[^BidiToken new tag:#tab ; direction: #neutral; begin:bIndex ; end: bIndex+1; metrics: (BidiTextMetrics new tabMetrics: aString at: bIndex ; yourself); yourself].
 	
 	c isSeparator ifTrue:[^BidiToken new tag:#ws ; direction: #neutral; begin:bIndex ; end: bIndex+1; metrics: (BidiTextMetrics of: aString from: bIndex to: bIndex+1); yourself].
  
@@ -3172,27 +3210,6 @@ index: aText base: anIndex direction: direction width: width at: x
 	^i + anIndex
 		! !
 
-!BidiZone methodsFor: 'translating' stamp: 'DF 6/18/2023 21:25:51'!
-rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint direction: direction 
-
-	| b e ix jx p q |
-	
-	b := bIndex max: beginIndex.
-	e := eIndex min: endIndex.
-	
-	b >= endIndex ifTrue:[^{}].
-	e <= beginIndex ifTrue:[^{}].
-	
-	ix := self xcoord: aText direction: direction base: baseIndex at: b x: aPoint x.
-
-	jx := self xcoord: aText direction: direction base: baseIndex at: e x: aPoint x.
-		
-	p := ix min: jx.
-	q := ix max: jx.
-		
-	^{ p@(aPoint y + self height - metrics ascent) extent: (q-p)@(metrics ascent + metrics descent)	 }.
-! !
-
 !BidiZone methodsFor: 'translating' stamp: 'DF 6/29/2023 17:21:54'!
 rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint height: h direction: direction 
 
@@ -3240,10 +3257,12 @@ emptyAt: anIndex
 	^aZone
 ! !
 
-!BidiZone class methodsFor: 'instance creation' stamp: 'DF 5/24/2023 20:54:36'!
+!BidiZone class methodsFor: 'instance creation' stamp: 'DF 7/1/2023 15:10:50'!
 from: aToken direction: dir
 
 	aToken tag :: = #eot ifTrue:[^BidiNativeZone new].
+
+	aToken tag :: = #tab ifTrue:[^BidiSkipZone new].
 
 	aToken tag :: = #ws ifTrue:[^BidiSkipZone new].
 
@@ -3279,14 +3298,19 @@ proceed: tokens at: index direction: dir
 color
 	^#red! !
 
-!BidiNativeZone methodsFor: 'building' stamp: 'DF 5/24/2023 20:53:02'!
+!BidiNativeZone methodsFor: 'building' stamp: 'DF 7/1/2023 15:20:00'!
 proceed: tokens at: index direction: dir
 
-	| aToken |
+	| tag |
 	
-	aToken := tokens at:index.
+	tag := tokens at:index :: tag.
 	
-	^ aToken tag ~= #nl and: [aToken tag ~= #ws] and: [ aToken tag ~= #contra ]! !
+	tag = #ws ifTrue:[^false].
+	tag = #nl ifTrue:[^false].
+	tag = #tab ifTrue:[^false].
+	tag = #contra ifTrue:[^false].
+	
+	^ true! !
 
 !BidiNativeZone methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 13:12:10'!
 color
@@ -3327,14 +3351,18 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 initialize
 	color := #yellow! !
 
-!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 5/24/2023 21:05:55'!
+!BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 7/1/2023 15:20:41'!
 proceed: tokens at: index direction: dir
 
 	| tag |
 	
 	tag := tokens at:index :: tag.
 	
-	^ tag = #ws or:[tag = #nl].! !
+	tag = #ws ifTrue:[^true].
+	tag = #nl ifTrue:[^true].
+	tag = #tab ifTrue:[^true].
+	
+	^ false! !
 
 !BidiSkipZone methodsFor: 'as yet unclassified' stamp: 'DF 6/17/2023 19:25:56'!
 xcoord: aText direction: direction base: baseIndex at: index x: x
