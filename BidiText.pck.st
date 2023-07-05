@@ -1,8 +1,18 @@
-'From Cuis 6.0 [latest update: #5847] on 1 July 2023 at 8:30:40 pm'!
+'From Cuis 6.0 [latest update: #5847] on 5 July 2023 at 9:00:15 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 122!
+!provides: 'BidiText' 1 123!
 SystemOrganization addCategory: 'BidiText'!
 
+
+!classDefinition: #TextWritingDirection category: 'BidiText'!
+TextAttribute subclass: #TextWritingDirection
+	instanceVariableNames: 'direction'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'TextWritingDirection class' category: 'BidiText'!
+TextWritingDirection class
+	instanceVariableNames: ''!
 
 !classDefinition: #BidiScrollableTextMorph category: 'BidiText'!
 PluggableScrollPane subclass: #BidiScrollableTextMorph
@@ -268,6 +278,44 @@ I am a zone whose writing direction goes against my line's paragraph writing dir
 !BidiNativeZone commentStamp: '<historical>' prior: 0!
 I am a zone whose writing direction is the same as my line's paragraph writing direction!
 
+!TextWritingDirection methodsFor: 'as yet unclassified' stamp: 'DF 7/5/2023 19:12:09'!
+= other
+ 	self == other ifTrue: [ ^ true ].
+	^ (other class == self class) 
+		and: [other direction = direction]! !
+
+!TextWritingDirection methodsFor: 'as yet unclassified' stamp: 'DF 7/5/2023 19:12:31'!
+direction
+	^direction! !
+
+!TextWritingDirection methodsFor: 'as yet unclassified' stamp: 'DF 7/5/2023 19:12:26'!
+direction: aSymbol
+	direction := aSymbol! !
+
+!TextWritingDirection methodsFor: 'as yet unclassified' stamp: 'DF 7/5/2023 19:12:39'!
+dominates: other
+	"There can be only one..."
+	^self class == other class! !
+
+!TextWritingDirection methodsFor: 'as yet unclassified' stamp: 'DF 7/5/2023 19:12:47'!
+hash
+	"#hash is re-implemented because #= is re-implemented"
+	^ direction hash! !
+
+!TextWritingDirection methodsFor: 'as yet unclassified' stamp: 'DF 7/5/2023 19:12:56'!
+isParagraphAttribute
+	"Attributes that answer true will always be applied to whole paragraphs, i.e. starting at the position after a newLine (or 1) and ending at a newLine (or text size)
+	"
+	^true! !
+
+!TextWritingDirection class methodsFor: 'as yet unclassified' stamp: 'DF 7/5/2023 19:34:40'!
+leftToRight
+	^self new direction:#ltr ; yourself! !
+
+!TextWritingDirection class methodsFor: 'as yet unclassified' stamp: 'DF 7/5/2023 19:34:33'!
+rightToLeft
+	^self new direction:#rtl ; yourself! !
+
 !BidiScrollableTextMorph methodsFor: 'as yet unclassified' stamp: 'DF 6/4/2023 12:05:17'!
 build
 
@@ -387,13 +435,18 @@ addCutAndPasteMenuSectionTo: aMenu
 	
 	^aMenu! !
 
-!BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/27/2023 19:13:19'!
+!BidiTextMorph methodsFor: 'menus' stamp: 'DF 7/5/2023 20:48:45'!
 addStyleMenuSectionTo: aMenu
 
 	aMenu
 		add: 'Set Alignment...'
 		action: #chooseAlignment
 		icon:	#formatJustifyLeftIcon.
+
+	aMenu
+		add: 'Set Writing Direction...'
+		action: #chooseWritingDirection
+		icon:	#globeIcon.
 ! !
 
 !BidiTextMorph methodsFor: 'menus' stamp: 'DF 4/11/2023 15:04:04'!
@@ -428,6 +481,21 @@ chooseAlignment
 	reply ifNil: [ ^self ].
 	
 	editor align: reply.
+	page build: text.
+	self redrawNeeded.
+	
+	^ true! !
+
+!BidiTextMorph methodsFor: 'menus' stamp: 'DF 7/5/2023 20:50:04'!
+chooseWritingDirection
+	"This is a user command, and _should_ generate undo"
+
+	| aList reply |
+	aList := #(ltr rtl).
+	reply := (SelectionMenu labelList: {'Left to Right' . 'Right to Left'} selections: aList) startUpMenu.
+	reply ifNil: [ ^self ].
+	
+	editor direction: reply.
 	page build: text.
 	self redrawNeeded.
 	
@@ -1162,6 +1230,23 @@ delete
 	
 	^delta
 ! !
+
+!BidiEditor methodsFor: 'editing' stamp: 'DF 7/5/2023 19:36:35'!
+direction: aSymbol
+
+	| b e dir aCommand |
+	
+	b := point min: mark.
+	e := point max: mark.
+
+	aSymbol = #ltr ifTrue:[dir := TextWritingDirection leftToRight].
+	aSymbol = #rtl ifTrue:[dir := TextWritingDirection rightToLeft].
+	
+	aCommand := text commandForAddAttribute: dir from: b to: e-1.
+	
+	history nextPut: aCommand; truncateAtPosition.	
+	aCommand doOn: self.
+	! !
 
 !BidiEditor methodsFor: 'editing' stamp: 'DF 5/6/2023 17:54:31'!
 insert: aCodePoint
@@ -2306,10 +2391,17 @@ determineAlignment: aText at: i
 	code = BidiParagraph justifiedCode ifTrue:[alignment := #justified. ^self].
 	! !
 
-!BidiParagraph methodsFor: 'building' stamp: 'DF 5/6/2023 16:58:28'!
+!BidiParagraph methodsFor: 'building' stamp: 'DF 7/5/2023 20:58:13'!
 determinePrimaryDirection: aText at: anIndex
 
 	| d i | 
+	
+	d := aText writingDirectionAt: anIndex.
+	
+	d = #rtl ifTrue:[direction := -1. ^self].
+	d = #ltr ifTrue:[direction := 1. ^self].
+	
+	"if there's not explicit writing direction, use the code points to infer a probable writing direction"
 	
 	i := anIndex.
 	
@@ -3559,6 +3651,18 @@ displayOnBitBltCanvasEngine: engine from: startIndex to: stopIndex at: p font: a
 		trueTypeFont: aTrueTypeFont
 		color: color
 		direction: direction.! !
+
+!Text methodsFor: '*BidiText' stamp: 'DF 7/5/2023 20:57:55'!
+writingDirectionAt: anIndex
+
+	| a | 
+	
+	a := self attributesAt: anIndex :: detect:[:each | each  isMemberOf: TextWritingDirection ] ifNone:[nil].
+	
+	a ifNil:[^nil].
+	
+	^a direction
+	! !
 
 !TextReplaceCommand methodsFor: '*BidiText' stamp: 'DF 6/11/2023 16:15:19'!
 redoInterval
