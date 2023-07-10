@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5847] on 5 July 2023 at 9:00:15 pm'!
+'From Cuis 6.0 [latest update: #5847] on 10 July 2023 at 7:24:00 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 123!
+!provides: 'BidiText' 1 128!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -62,16 +62,6 @@ Object subclass: #BidiEditor
 	category: 'BidiText'!
 !classDefinition: 'BidiEditor class' category: 'BidiText'!
 BidiEditor class
-	instanceVariableNames: ''!
-
-!classDefinition: #BidiFork category: 'BidiText'!
-Object subclass: #BidiFork
-	instanceVariableNames: 'left right parent weight count height'
-	classVariableNames: ''
-	poolDictionaries: ''
-	category: 'BidiText'!
-!classDefinition: 'BidiFork class' category: 'BidiText'!
-BidiFork class
 	instanceVariableNames: ''!
 
 !classDefinition: #BidiLine category: 'BidiText'!
@@ -1356,101 +1346,6 @@ isHistoryAtEnd
 isHistoryEmpty
 	^ history position = 0! !
 
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:16:30'!
-count
-	^count! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/23/2023 21:36:22'!
-first
-	| p |
-	
-	p := self.
-	
-	[p left notNil] whileTrue:[p := p left].
-	
-	^p! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:18:13'!
-height
-	^height! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/23/2023 21:36:31'!
-last
-	| p |
-	
-	p := self.
-	
-	[p right notNil] whileTrue:[p := p right].
-	
-	^p! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:01:02'!
-left
-	^left! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:10:09'!
-left: aNode right: anotherNode
-
-	left := aNode.
-	right := anotherNode.
-	
-	left parent: self.
-	right parent: self.
-	
-	self update.! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 21:29:34'!
-paragraphAt: anIndex
-
-	anIndex <= weight ifTrue:[^left paragraphAt:anIndex].
-	
-	^right paragraphAt: anIndex - weight.! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:00:58'!
-parent
-	^parent! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:15:26'!
-parent: aNode
-
-	parent := aNode
-	! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:01:05'!
-right
-	^right! !
-
-!BidiFork methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:10:04'!
-update
-	
-	weight := left count.
-	count := left count + right count.
-	height := left height + right height.! !
-
-!BidiFork class methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 16:14:40'!
-build: anOrderedCollection from: bIndex to: eIndex
-
-	| m x y |
-	
-	self assert: bIndex >=1.
-	self assert: bIndex <= eIndex.
-	self assert: eIndex <= (anOrderedCollection size + 1).
-	
-	eIndex == bIndex ifTrue:[^nil].
-	
-	eIndex == (bIndex + 1) ifTrue:[^anOrderedCollection at: bIndex].
-	
-	m := (bIndex // 2) + (eIndex // 2) + (( (bIndex mod:2)  + (eIndex mod:2) ) // 2).
-	
-	self assert: bIndex < m.
-	self assert: eIndex > m.
-	
-	x := self build: anOrderedCollection from: bIndex to: m.
-	y := self build: anOrderedCollection from:m to: eIndex.
-	
-	^BidiFork new left: x right: y ; yourself
-	! !
-
 !BidiLine methodsFor: 'accessing' stamp: 'DF 5/19/2023 17:55:29'!
 ascent
 	^metrics ascent! !
@@ -2026,10 +1921,12 @@ width: tokens from: bIndex to: e
 	
 	^w.! !
 
-!BidiPage methodsFor: 'accessing' stamp: 'DF 6/4/2023 09:38:21'!
+!BidiPage methodsFor: 'accessing' stamp: 'DF 7/8/2023 21:53:25'!
 height
 
-	^paragraphs inject:0 into:[:acc :each | acc + each height].! !
+	paragraphs ifEmpty:[^0].
+
+	^paragraphs last descent + (paragraphs inject:0 into:[:acc :each | acc + each height]).! !
 
 !BidiPage methodsFor: 'accessing' stamp: 'DF 4/11/2023 15:46:43'!
 width: anInteger
@@ -2050,7 +1947,7 @@ writingDirectionAt: anIndex
 	
 	^ paragraphs at: i :: writingDirection! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/16/2023 11:52:29'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 7/9/2023 20:09:28'!
 above: aText at: anIndex
 
 	| pc p c i |
@@ -2065,14 +1962,14 @@ above: aText at: anIndex
 	
 	i ifNotNil:[^c + i].
 	
-	p = 1 ifTrue:[^ anIndex ].
+	" here we are on the first line of the paragraph " 
 	
-	c := c - (paragraphs at: p - 1 :: count).
+	p = 1 ifTrue:[^ anIndex ]. " it's the first paragraph so there's no line above it, remain in the same place. " 
 	
-	^ c + (paragraphs at: p-1 :: endIndex)
+	^c
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 15:37:47'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 7/9/2023 20:19:29'!
 below: aText at: anIndex
 
 	| pc p c i |
@@ -2090,12 +1987,10 @@ below: aText at: anIndex
 	
 	p = paragraphs size ifTrue:[^ anIndex ].
 	
-	c := c + (paragraphs at: p :: count).
-	
-	^ c + (paragraphs at: p+1 :: beginIndex)
+	^ c + (paragraphs at: p :: count) + 1
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/21/2023 12:55:09'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 7/10/2023 19:22:03'!
 index: aText at: aPoint
 
 	| y i c |
@@ -2153,26 +2048,6 @@ paragraphAt: charIndex
 	^ { i . c . y }
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/27/2023 19:35:23'!
-paragraphsFrom: bIndex to: eIndex do: aBlock
-
-	| bcy ecy b e |
-		
-	bcy := self paragraphAt: bIndex.
-	
-	ecy := self paragraphAt: eIndex.
-	
-	b := bcy at:1.
-	
-	e := ecy at:1.
-	
-	^paragraphs from: b to: e do: aBlock.
-	
-
-
-
-	! !
-
 !BidiPage methodsFor: 'translating' stamp: 'DF 6/5/2023 09:56:46'!
 point: aText at: absoluteIndex
 
@@ -2200,7 +2075,7 @@ point: aText at: absoluteIndex
 	^ (paragraphs at: i :: point: aText base: c at: absoluteIndex - c) translatedBy: (0@y).
 	! !
 
-!BidiPage methodsFor: 'translating' stamp: 'DF 4/12/2023 13:13:54'!
+!BidiPage methodsFor: 'translating' stamp: 'DF 7/10/2023 19:22:10'!
 rectangles: aText from: bIndex to: eIndex
 
 	| bcy ecy y c b e i rects |
@@ -2226,7 +2101,7 @@ rectangles: aText from: bIndex to: eIndex
 		pe := p endIndex min: eIndex - c.
 		r := p rectangles: aText base: c from: i - c to: pe.
 		rects addAll: (r collect:[:each | each translatedBy: 0@y]).
-		i := pe + c + 1.
+		i := pe + c.
 		c := c + p count.
 		y := y + p height].
 	
@@ -2244,7 +2119,7 @@ build: aText
 	
 	self build: aText from: 0 to: 0 delta: aText size.	! !
 
-!BidiPage methodsFor: 'building' stamp: 'DF 6/3/2023 20:35:15'!
+!BidiPage methodsFor: 'building' stamp: 'DF 7/10/2023 19:21:54'!
 build: aText from: bIndex to:eIndex delta: delta
 
 	| b e bc ec pb pe prefix fresh suffix |
@@ -2267,7 +2142,7 @@ build: aText from: bIndex to:eIndex delta: delta
 
 	b := paragraphs at: pb :: beginIndex + (bc at:2).
 
-	e := paragraphs at: pe :: terminalIndex + (ec at:2).	
+	e := paragraphs at: pe :: endIndex + (ec at:2).	
 	
 	fresh := self parse: aText from: b to: e + delta direction: 1.
 	
@@ -2467,31 +2342,20 @@ alignment: aSymbol
 beginIndex
 	^lines first beginIndex! !
 
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 6/5/2023 20:32:54'!
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 7/10/2023 19:22:16'!
 count
 
 	lines isEmpty ifTrue:[^0].
 	
-	^self terminalIndex - self beginIndex ! !
+	^self endIndex - self beginIndex ! !
 
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 6/3/2023 17:23:27'!
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 7/8/2023 21:51:18'!
+descent
+	^lines last descent! !
+
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 7/10/2023 19:20:41'!
 endIndex
 
-	| aLine |
-	
-	aLine := lines last.
-	
-	^aLine endIndex
-	
-	
-! !
-
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/11/2023 16:47:36'!
-height
-	^height! !
-
-!BidiParagraph methodsFor: 'accessing' stamp: 'DF 6/3/2023 17:26:29'!
-terminalIndex
 
 	| aLine |
 	
@@ -2501,6 +2365,10 @@ terminalIndex
 	
 	
 ! !
+
+!BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/11/2023 16:47:36'!
+height
+	^height! !
 
 !BidiParagraph methodsFor: 'accessing' stamp: 'DF 4/4/2023 19:58:04'!
 width: anInteger
@@ -2621,7 +2489,7 @@ lastPoint: aText base: baseIndex
 			x@(0 - aLine ascent) extent: 0@(aLine ascent + aLine descent)].
 	! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 6/3/2023 20:37:06'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 7/10/2023 19:15:35'!
 lineAt: offset
 
 	| i y |
@@ -2649,7 +2517,7 @@ lineAt: offset
 	
 	self assert: i <= (lines size + 1).
 
-	i = lines size ifTrue:[^ { i.y }].
+	i >= lines size ifTrue:[^ { i.y }].
 	
 	lines at:i :: endIndex = offset and: [ lines at: i+1 :: beginIndex = offset ] :: 
 		ifTrue:[^ {i+1 . y + (lines at: i + 1 :: height)} ].
@@ -2671,7 +2539,7 @@ point: aText base: baseIndex at: offset
 	
 	^x@(y+aLine height - aLine ascent) extent: 0@(aLine ascent + aLine descent)! !
 
-!BidiParagraph methodsFor: 'translating' stamp: 'DF 5/6/2023 12:47:35'!
+!BidiParagraph methodsFor: 'translating' stamp: 'DF 7/10/2023 19:18:29'!
 rectangles: aText base: baseIndex from: bIndex to: eIndex
 
 	| iy jy i j aLine rects y |
@@ -2705,10 +2573,12 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex
 
 	self assert: i = j.
 	
-	y := y + aLine height.		
-	aLine := lines at:i.	
-	rects addAll:(
-		aLine rectangles: aText base: baseIndex from: aLine beginIndex to: eIndex at: y direction: direction width: width alignment: alignment). 
+	i <= lines size ifTrue:[
+		y := y + aLine height.		
+		aLine := lines at:i.	
+		rects addAll:(
+			aLine rectangles: aText base: baseIndex from: aLine beginIndex to: eIndex at: y direction: direction width: width alignment: alignment)
+	].
 	
 	^rects! !
 
@@ -2747,56 +2617,6 @@ succ
 	p parent ifNil:[^nil].
 	
 	^p parent right first! !
-
-!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/23/2023 21:36:59'!
-left
-	^nil! !
-
-!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/22/2023 21:30:50'!
-paragraphAt: anIndex
-
-	^self! !
-
-!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/23/2023 21:38:25'!
-parent
-	^parent! !
-
-!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/22/2023 16:16:04'!
-parent: aNode
-	parent := aNode! !
-
-!BidiParagraph methodsFor: 'tree interface' stamp: 'DF 4/23/2023 21:37:02'!
-right
-	^nil! !
-
-!BidiParagraph methodsFor: 'as yet unclassified' stamp: 'DF 4/22/2023 22:25:15'!
-delete
-	
-	" delete self from the tree and answer the tree's root "
-	
-	| sibling grandpa p q |
-	
-	parent ifNil:[^nil].
-	
-	sibling := parent left == self ifTrue:[parent right] ifFalse:[parent left].
-	
-	grandpa := parent parent.
-	
-	grandpa ifNil:[sibling parent: nil. ^sibling].
-	
-	sibling parent: grandpa.
-	
-	grandpa left == parent ifTrue:[grandpa left: sibling] ifFalse:[grandpa right: sibling].
-	
-	p := grandpa.
-	
-	[p isNil] 
-		whileFalse:[
-			p update.
-			q := p.
-			p := p parent ].
-	
-	^q! !
 
 !BidiParagraph class methodsFor: 'instance creation' stamp: 'DF 5/6/2023 18:26:46'!
 empty
