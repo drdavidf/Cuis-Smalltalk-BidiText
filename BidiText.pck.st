@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5847] on 10 July 2023 at 7:24:00 pm'!
+'From Cuis 6.0 [latest update: #5847] on 28 July 2023 at 6:49:28 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 128!
+!provides: 'BidiText' 1 129!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -42,16 +42,6 @@ Object subclass: #ArabicComposer
 	category: 'BidiText'!
 !classDefinition: 'ArabicComposer class' category: 'BidiText'!
 ArabicComposer class
-	instanceVariableNames: ''!
-
-!classDefinition: #BidiContraZoneChain category: 'BidiText'!
-Object subclass: #BidiContraZoneChain
-	instanceVariableNames: 'zones'
-	classVariableNames: ''
-	poolDictionaries: ''
-	category: 'BidiText'!
-!classDefinition: 'BidiContraZoneChain class' category: 'BidiText'!
-BidiContraZoneChain class
 	instanceVariableNames: ''!
 
 !classDefinition: #BidiEditor category: 'BidiText'!
@@ -176,7 +166,7 @@ BidiToken class
 
 !classDefinition: #BidiZone category: 'BidiText'!
 Object subclass: #BidiZone
-	instanceVariableNames: 'beginIndex endIndex metrics'
+	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'BidiText'!
@@ -184,8 +174,28 @@ Object subclass: #BidiZone
 BidiZone class
 	instanceVariableNames: ''!
 
+!classDefinition: #BidiContraZoneChain category: 'BidiText'!
+BidiZone subclass: #BidiContraZoneChain
+	instanceVariableNames: 'zones'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'BidiContraZoneChain class' category: 'BidiText'!
+BidiContraZoneChain class
+	instanceVariableNames: ''!
+
+!classDefinition: #BidiLeafZone category: 'BidiText'!
+BidiZone subclass: #BidiLeafZone
+	instanceVariableNames: 'beginIndex endIndex metrics'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'BidiText'!
+!classDefinition: 'BidiLeafZone class' category: 'BidiText'!
+BidiLeafZone class
+	instanceVariableNames: ''!
+
 !classDefinition: #BidiContraZone category: 'BidiText'!
-BidiZone subclass: #BidiContraZone
+BidiLeafZone subclass: #BidiContraZone
 	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
@@ -195,7 +205,7 @@ BidiContraZone class
 	instanceVariableNames: ''!
 
 !classDefinition: #BidiNativeZone category: 'BidiText'!
-BidiZone subclass: #BidiNativeZone
+BidiLeafZone subclass: #BidiNativeZone
 	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
@@ -205,7 +215,7 @@ BidiNativeZone class
 	instanceVariableNames: ''!
 
 !classDefinition: #BidiSkipZone category: 'BidiText'!
-BidiZone subclass: #BidiSkipZone
+BidiLeafZone subclass: #BidiSkipZone
 	instanceVariableNames: 'color'
 	classVariableNames: ''
 	poolDictionaries: ''
@@ -245,9 +255,6 @@ Vertex class
 	instanceVariableNames: ''!
 
 
-!BidiContraZoneChain commentStamp: '<historical>' prior: 0!
-I represent a sequence of zones, all in the same line and with the same direction. I'm used only for contra zones.!
-
 !BidiLine commentStamp: '<historical>' prior: 0!
 I represent a continous area of text that occupies a rectangle, representing a single line in a paragraph. 
 My indices are relative to the beginning of my paragraph.!
@@ -259,6 +266,12 @@ I represent a continous area of text composed of a sequence of paragraphs.!
 I represent a continous area of text that has the same primary writing direction.!
 
 !BidiZone commentStamp: '<historical>' prior: 0!
+I represent a sequence of zones, all in the same line and with the same direction. I'm used only for contra zones.!
+
+!BidiContraZoneChain commentStamp: '<historical>' prior: 0!
+I represent a sequence of zones, all in the same line and with the same direction. I'm used only for contra zones.!
+
+!BidiLeafZone commentStamp: '<historical>' prior: 0!
 I represent a continous area of a text line that has the same writing direction. My indices are offsets from the 
 beginning of my line's paragraph.!
 
@@ -1037,101 +1050,6 @@ isLetter: aUnicodeCodePoint
 
 	^ 0x0622 <= aUnicodeCodePoint codePoint and: [aUnicodeCodePoint codePoint <= 0x064A]! !
 
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:03:01'!
-ascent
-	^zones max:[:each | each ascent]! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:28:47'!
-beginIndex
-	^zones last beginIndex! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:03:11'!
-descent
-	^zones max:[:each | each descent]! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 18:49:27'!
-draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
-
-	| x y |
-	
-	x := aPoint x.
-	y := aPoint y.
-	
-	zones do:[:each |
-		each draw: aText from: baseIndex on: aCanvas at: ((x + ((each width) * direction))@y) direction: direction*-1.
-		x := x + (each width * direction) ].
-! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:28:51'!
-endIndex
-	^zones first endIndex! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:02:07'!
-height
-	^zones max:[:each | each height]! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 19:05:29'!
-index: aText base: anIndex direction: direction width: width at: x0
-
-	| i x |
-	
-	i := 1.
-	x := width.
-		
-	[i <= zones size and: [ (x0 * direction) > (((zones at:i :: width) * direction + x) * direction) ] ] 
-		whileTrue:[ x := x + ((zones at:i :: width) * direction). i := i + 1].
-
-	i <= zones size 	
-		ifTrue:[^ zones at:i :: index: aText base: anIndex direction:direction*-1 width: (x + ((zones at:i :: width) * direction)) at: x0].
-		
-	^ zones last endIndex + anIndex.
-! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/29/2023 17:26:08'!
-rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint height: h direction: direction 
-
-	| x y |
-	
-	x := aPoint x.
-	y := aPoint y.
-	
-	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x+(each width * direction))@y height:h direction: direction*-1). x := x + (each width * direction). acc ].
-! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:01:33'!
-width
-	^zones sum:[:each | each width]! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 17:42:51'!
-xcoord: aText direction: direction base: baseIndex at: index x: x0
-
-	" answer the x coordinate of the code point whose index is index. "	
-	
-	| i x z |
-	
-	i := 1.
-
-	x := x0.
-	
-	"because the zones are arranged in reverse order we move to lower indices as we 
-	advance in the sequence"
-	
-	[i <= zones size and: [index < (zones at:i :: beginIndex)] ] 
-		whileTrue:[
-			x := x + ((zones at:i :: width) * direction). i := i + 1. ].
-	
-	i = (zones size + 1) 
-		ifTrue:[^x].
-	
-	z := zones at:i.
-	
-	^ z width * direction + (z xcoord: aText direction: direction * -1 base: baseIndex at: index x: x)
-! !
-
-!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 14:13:58'!
-zones: anOrderedCollection
-	zones := anOrderedCollection ! !
-
 !BidiEditor methodsFor: 'initialization' stamp: 'DF 4/11/2023 13:55:57'!
 initialize
 	point := 1.
@@ -1392,7 +1310,7 @@ newlineTerminated: aBoolean
 width
 	^metrics width! !
 
-!BidiLine methodsFor: 'building' stamp: 'DF 6/30/2023 21:16:11'!
+!BidiLine methodsFor: 'building' stamp: 'DF 7/28/2023 18:44:01'!
 build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretchRatio 
 
 	| b zone zs |
@@ -1409,7 +1327,7 @@ build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretchRa
 	
 	[b < e ] 
 		whileTrue:[
-			zone := BidiZone from: (tokens at:b) direction: dir.
+			zone := BidiLeafZone from: (tokens at:b) direction: dir.
 			zs add: zone.
 			b := zone build: tokens base: baseIndex from: b to: e direction: dir ratio: stretchRatio ].
 	
@@ -1426,12 +1344,12 @@ build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretchRa
 	
 			 ! !
 
-!BidiLine methodsFor: 'building' stamp: 'DF 5/19/2023 17:56:59'!
+!BidiLine methodsFor: 'building' stamp: 'DF 7/28/2023 18:44:01'!
 emptyAt: anIndex
 
 	| aZone |
 	
-	aZone := BidiZone emptyAt: anIndex. 
+	aZone := BidiLeafZone emptyAt: anIndex. 
 	
 	metrics := aZone metrics.
 	
@@ -2582,42 +2500,6 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex
 	
 	^rects! !
 
-!BidiParagraph methodsFor: 'enumerating' stamp: 'DF 4/23/2023 21:35:16'!
-first
-	^self! !
-
-!BidiParagraph methodsFor: 'enumerating' stamp: 'DF 4/23/2023 21:35:19'!
-last
-	^self! !
-
-!BidiParagraph methodsFor: 'enumerating' stamp: 'DF 4/23/2023 21:34:40'!
-pred
-	"answer the previous paragraph in the paragraph tree, or nil if this is the first paragraph"
-	
-	|p |
-	
-	p := self.
-	
-	[p parent notNil and: [ p parent left == p] ] whileTrue:[p := p parent].
-	
-	p parent ifNil:[^nil].
-	
-	^p parent left last! !
-
-!BidiParagraph methodsFor: 'enumerating' stamp: 'DF 4/23/2023 21:33:50'!
-succ
-	"answer the next paragraph in the paragraph tree, or nil if this is the last paragraph"
-	
-	|p |
-	
-	p := self.
-	
-	[p parent notNil and: [ p parent right == p] ] whileTrue:[p := p parent].
-	
-	p parent ifNil:[^nil].
-	
-	^p parent right first! !
-
 !BidiParagraph class methodsFor: 'instance creation' stamp: 'DF 5/6/2023 18:26:46'!
 empty
 
@@ -2984,7 +2866,144 @@ nextWord: aString at: index direction: dir
 	^BidiToken new tag: #word ; direction: wd; begin: index ; end: i ; metrics: (BidiTextMetrics of: aString from: index to: i); yourself.
 	! !
 
-!BidiZone methodsFor: 'building' stamp: 'DF 5/26/2023 20:59:44'!
+!BidiZone methodsFor: 'accessing' stamp: 'DF 7/28/2023 18:45:18'!
+ascent
+	self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 7/28/2023 18:45:24'!
+beginIndex
+	self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 7/28/2023 18:45:28'!
+descent
+	self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 7/28/2023 18:45:40'!
+endIndex
+	self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 7/28/2023 18:45:45'!
+height
+	self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'accessing' stamp: 'DF 7/28/2023 18:46:02'!
+width
+	self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'drawing' stamp: 'DF 7/28/2023 18:45:36'!
+draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
+
+	self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'translating' stamp: 'DF 7/28/2023 18:45:51'!
+index: aText base: anIndex direction: direction width: width at: x0
+	self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'translating' stamp: 'DF 7/28/2023 18:45:57'!
+rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint height: h direction: direction 
+
+	self subclassResponsibility ! !
+
+!BidiZone methodsFor: 'translating' stamp: 'DF 7/28/2023 18:46:11'!
+xcoord: aText direction: direction base: baseIndex at: index x: x0
+	self subclassResponsibility ! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:03:01'!
+ascent
+	^zones max:[:each | each ascent]! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:28:47'!
+beginIndex
+	^zones last beginIndex! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:03:11'!
+descent
+	^zones max:[:each | each descent]! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 18:49:27'!
+draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
+
+	| x y |
+	
+	x := aPoint x.
+	y := aPoint y.
+	
+	zones do:[:each |
+		each draw: aText from: baseIndex on: aCanvas at: ((x + ((each width) * direction))@y) direction: direction*-1.
+		x := x + (each width * direction) ].
+! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:28:51'!
+endIndex
+	^zones first endIndex! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:02:07'!
+height
+	^zones max:[:each | each height]! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 19:05:29'!
+index: aText base: anIndex direction: direction width: width at: x0
+
+	| i x |
+	
+	i := 1.
+	x := width.
+		
+	[i <= zones size and: [ (x0 * direction) > (((zones at:i :: width) * direction + x) * direction) ] ] 
+		whileTrue:[ x := x + ((zones at:i :: width) * direction). i := i + 1].
+
+	i <= zones size 	
+		ifTrue:[^ zones at:i :: index: aText base: anIndex direction:direction*-1 width: (x + ((zones at:i :: width) * direction)) at: x0].
+		
+	^ zones last endIndex + anIndex.
+! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/29/2023 17:26:08'!
+rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint height: h direction: direction 
+
+	| x y |
+	
+	x := aPoint x.
+	y := aPoint y.
+	
+	^zones inject: OrderedCollection new into:[:acc :each | acc addAll: (each rectangles: aText base:baseIndex from: bIndex to:eIndex at: (x+(each width * direction))@y height:h direction: direction*-1). x := x + (each width * direction). acc ].
+! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 16:01:33'!
+width
+	^zones sum:[:each | each width]! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 17:42:51'!
+xcoord: aText direction: direction base: baseIndex at: index x: x0
+
+	" answer the x coordinate of the code point whose index is index. "	
+	
+	| i x z |
+	
+	i := 1.
+
+	x := x0.
+	
+	"because the zones are arranged in reverse order we move to lower indices as we 
+	advance in the sequence"
+	
+	[i <= zones size and: [index < (zones at:i :: beginIndex)] ] 
+		whileTrue:[
+			x := x + ((zones at:i :: width) * direction). i := i + 1. ].
+	
+	i = (zones size + 1) 
+		ifTrue:[^x].
+	
+	z := zones at:i.
+	
+	^ z width * direction + (z xcoord: aText direction: direction * -1 base: baseIndex at: index x: x)
+! !
+
+!BidiContraZoneChain methodsFor: 'as yet unclassified' stamp: 'DF 6/24/2023 14:13:58'!
+zones: anOrderedCollection
+	zones := anOrderedCollection ! !
+
+!BidiLeafZone methodsFor: 'building' stamp: 'DF 5/26/2023 20:59:44'!
 build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretch 
 
 	| b |
@@ -3005,7 +3024,7 @@ build: tokens base: baseIndex from: bIndex to: e direction: dir ratio: stretch
 			b := b + 1 ].
 	^b.! !
 
-!BidiZone methodsFor: 'building' stamp: 'DF 5/19/2023 15:11:42'!
+!BidiLeafZone methodsFor: 'building' stamp: 'DF 5/19/2023 15:11:42'!
 emptyAt: anIndex
 
 	beginIndex := anIndex.
@@ -3014,12 +3033,12 @@ emptyAt: anIndex
 	metrics := BidiTextMetrics empty.
 ! !
 
-!BidiZone methodsFor: 'building' stamp: 'DF 5/22/2023 17:40:43'!
+!BidiLeafZone methodsFor: 'building' stamp: 'DF 5/22/2023 17:40:43'!
 proceed: tokens at: index direction: dir
 
 	^self subclassResponsibility ! !
 
-!BidiZone methodsFor: 'drawing' stamp: 'DF 6/29/2023 11:22:30'!
+!BidiLeafZone methodsFor: 'drawing' stamp: 'DF 6/29/2023 11:22:30'!
 draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 	| x y b e j font color r s extent |
@@ -3062,47 +3081,47 @@ draw: aText from: baseIndex on: aCanvas at: aPoint direction: direction
 
 		 ]! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:10:40'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:10:40'!
 ascent
 	^metrics ascent! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 14:36:48'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 14:36:48'!
 beginIndex
 	^beginIndex! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 6/24/2023 13:11:34'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 6/24/2023 13:11:34'!
 color
 	self subclassResponsibility ! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 6/24/2023 13:11:39'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 6/24/2023 13:11:39'!
 color: aSymbol
 	self subclassResponsibility ! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:10:46'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:10:46'!
 descent
 	^metrics descent! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 14:36:52'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 4/15/2023 14:36:52'!
 endIndex
 	^endIndex! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:10:56'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:10:56'!
 extent
 	^metrics width @ metrics height ! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:11:04'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:11:04'!
 height
 	^metrics height! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 18:02:26'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 18:02:26'!
 metrics
 	^metrics! !
 
-!BidiZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:11:11'!
+!BidiLeafZone methodsFor: 'accessing' stamp: 'DF 5/19/2023 15:11:11'!
 width
 	^metrics width! !
 
-!BidiZone methodsFor: 'translating' stamp: 'DF 4/17/2023 18:27:42'!
+!BidiLeafZone methodsFor: 'translating' stamp: 'DF 4/17/2023 18:27:42'!
 index: aText base: anIndex direction: direction width: width at: x
 	
 	" answer the index of the code point located at x coordinate x. "
@@ -3122,7 +3141,7 @@ index: aText base: anIndex direction: direction width: width at: x
 	^i + anIndex
 		! !
 
-!BidiZone methodsFor: 'translating' stamp: 'DF 6/29/2023 17:21:54'!
+!BidiLeafZone methodsFor: 'translating' stamp: 'DF 6/29/2023 17:21:54'!
 rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint height: h direction: direction 
 
 	| b e ix jx p q |
@@ -3145,7 +3164,7 @@ rectangles: aText base: baseIndex from: bIndex to: eIndex at: aPoint height: h d
 	^{ p@aPoint y extent: (q-p)@h }.
 ! !
 
-!BidiZone methodsFor: 'translating' stamp: 'DF 6/24/2023 16:51:06'!
+!BidiLeafZone methodsFor: 'translating' stamp: 'DF 6/24/2023 16:51:06'!
 xcoord: aText direction: direction base: baseIndex at: index x: x
 
 	" answer the x coordinate of the code point whose index is index. "	
@@ -3157,7 +3176,7 @@ xcoord: aText direction: direction base: baseIndex at: index x: x
 	^ x + (m width * direction).
 		! !
 
-!BidiZone class methodsFor: 'instance creation' stamp: 'DF 4/15/2023 13:56:52'!
+!BidiLeafZone class methodsFor: 'instance creation' stamp: 'DF 4/15/2023 13:56:52'!
 emptyAt: anIndex
 
 	| aZone |
@@ -3169,7 +3188,7 @@ emptyAt: anIndex
 	^aZone
 ! !
 
-!BidiZone class methodsFor: 'instance creation' stamp: 'DF 7/1/2023 15:10:50'!
+!BidiLeafZone class methodsFor: 'instance creation' stamp: 'DF 7/1/2023 15:10:50'!
 from: aToken direction: dir
 
 	aToken tag :: = #eot ifTrue:[^BidiNativeZone new].
