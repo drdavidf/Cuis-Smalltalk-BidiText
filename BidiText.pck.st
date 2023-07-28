@@ -1,6 +1,6 @@
-'From Cuis 6.0 [latest update: #5847] on 28 July 2023 at 6:49:28 pm'!
+'From Cuis 6.0 [latest update: #5847] on 28 July 2023 at 6:54:03 pm'!
 'Description BidiText provides support for displaying and editing bidirectional text.'!
-!provides: 'BidiText' 1 129!
+!provides: 'BidiText' 1 130!
 SystemOrganization addCategory: 'BidiText'!
 
 
@@ -266,7 +266,7 @@ I represent a continous area of text composed of a sequence of paragraphs.!
 I represent a continous area of text that has the same primary writing direction.!
 
 !BidiZone commentStamp: '<historical>' prior: 0!
-I represent a sequence of zones, all in the same line and with the same direction. I'm used only for contra zones.!
+I am the interface to the zone family. A zone represents a continous area of a text line that has the same writing direction. My indices are offsets from the beginning of my line's paragraph.!
 
 !BidiContraZoneChain commentStamp: '<historical>' prior: 0!
 I represent a sequence of zones, all in the same line and with the same direction. I'm used only for contra zones.!
